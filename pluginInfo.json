@@ -4,7 +4,7 @@
     "shortDescription": "Scan, verify, and recover media/config from a damaged FPP SD card mounted over USB",
     "longDescription": "Mounts a second, possibly-damaged FPP SD card as a USB storage device, checks it for readability without destructive repair by default, and lets you recover the config and media (sequences, music, videos, effects, playlists) that are still intact onto this FPP's local storage, a USB drive, or a downloadable zip.",
     "srcURL": "https://github.com/bobreese/fpp-plugin-SDCardRecover",
-    "iconURL": "images/icon.png",
+    "iconURL": "icon.png",
     "versions": [
         {
             "minFPPVersion": "7.0",
