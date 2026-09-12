@@ -25,14 +25,18 @@ without running any destructive repair unless the user explicitly asks for it.
   Local restore is category-selective and goes directly into this device's
   real `/home/fpp/media/<category>/` directories (not a side staging
   folder) - the user picks which of config/sequences/music/videos/effects/
-  channeloutputs/playlists/images/plugins/upload to bring in. **Config is
-  special-cased**: since `/home/fpp/media/config` holds this active device's
-  own name, IP (if statically set), plugin settings, and channel output
-  setup, restoring it overwrites this device's own identity, not just adds
-  files. The UI requires an explicit "I understand" confirmation before
+  scripts/events/channelmemorymaps/playlists/images/plugins/upload/backups
+  to bring in (see `CATEGORY_RE` in `scripts/common.sh` for the current,
+  authoritative list - cross-checked against both of FPP's own backup
+  tools, see below). **Config is special-cased**: since `/home/fpp/media/config`
+  *and* the separate flat `/home/fpp/media/settings` file together hold this
+  active device's own name, IP (if statically set), plugin settings, and
+  timezone, restoring it overwrites this device's own identity, not just
+  adds files. The UI requires an explicit "I understand" confirmation before
   Config can be included, and `sdcard_recover.sh` backs up this device's
-  current config to `config.before-recover-<timestamp>` unconditionally
-  before ever touching it, regardless of what the UI already confirmed.
+  current config directory, `settings` file, and `timezone` file
+  unconditionally before ever touching any of them, regardless of what the
+  UI already confirmed.
 - **Persistent logging.** Every step is appended to `media/logs/SDCardRecover.log`
   (FPP's own log directory - `www/config.php`'s `$logDirectory`, exposed to
   child processes as `$LOGDIR`), so it shows up automatically in FPP's File
@@ -62,21 +66,31 @@ pluginInfo.json         Plugin manifest (name, deps: e2fsprogs, dosfstools, test
 menu.inc                Registers the "SD Card Recover" status-page menu entry
 status.php              Main 5-step wizard page
 stream.php              Streaming worker (pattern copied from FPP's copystorage.php)
-scripts_dispatch.php    Whitelist: stream.php ?cmd= -> one validated shell script + args
+scripts_dispatch.php    Whitelist: stream.php ?cmd= -> one validated shell script + args,
+                        merges stderr and appends a real SDCR_EXITCODE:<n> marker
 api.php                 Small sync JSON endpoints: evaluate, zip download
 js/sdcard-recover.js    Wizard controller + streaming log panels
 css/sdcard-recover.css  Step cards, log panes, indeterminate progress bars
 scripts/
   common.sh             Device-name validation (same regex family as FPP core's
-                         DriveMountHelper), root-device guard, shared paths
+                         DriveMountHelper), root-device guard, CATEGORY_RE
+                         (the authoritative local-restore category list),
+                         shared paths, and the log()/SDCardRecover.log
+                         plumbing (start/finish trap per script)
   sdcard_scan.sh         Step 1: list removable USB block devices/partitions
+                         (skips 0-byte empty card-reader slots)
   sdcard_mount_ro.sh     Step 2: read-only mount attempt -> /mnt/DamagedSD
   sdcard_fsck_check.sh   Fallback: fsck -n (non-destructive) if mount fails
   sdcard_fsck_repair.sh  Explicit opt-in only: fsck -y (destructive)
-  sdcard_verify.sh       Core step: read-test every config/media file, write manifest
+  sdcard_verify.sh       Core step: read-test every config/media file (dirs
+                         AND the standalone settings/timezone files), skip
+                         cape-eeprom.bin, write manifest
   sdcard_carve.sh        Deep-scan fallback: photorec raw signature carving
   sdcard_evaluate.sh     Step 4: recoverable size vs. local free space
-  sdcard_recover.sh      Step 5: copy OK'd files to local/usb/zip
+  sdcard_recover.sh      Step 5: local = category-selective, restores
+                         in-place into /home/fpp/media/<category>/ (with
+                         config/settings/timezone backups first if Config is
+                         included); usb/zip always copy everything verified
   sdcard_unmount.sh      Cleanup
   fpp_install.sh         Plugin Manager install hook (apt deps, dirs)
   fpp_uninstall.sh       Plugin Manager uninstall hook (leaves recovered data in place)
@@ -288,24 +302,93 @@ two more real things:
   it specifically, matching FPP's own convention, while still walking
   everything else under `config/` as before.
 
-## Known gaps before this runs on real hardware
+## The fsck fallback UI could never actually appear (real bug, real corruption test)
 
-This was written without access to a live FPP checkout or a Raspberry Pi to
-test against, so before trusting it on an actual damaged card:
+Deliberately trashing a real card's ext4 superblock (`dd if=/dev/urandom`
+onto the first 4KB of the partition, on a real second FPP SD card set aside
+for this) surfaced the first genuine mount failure this plugin had ever
+seen - and the "Run fsck -n" fallback box never appeared. Two compounding
+bugs, both in `scripts_dispatch.php`'s `sdcr_passthru()`:
 
-1. **photorec's `/cmd` micro-syntax is finicky and version-dependent** - the
+1. **No `2>&1`.** Every script's own `echo "ERROR: ..." >&2` (used for
+   every hard failure - "not mounted," "no manifest found," etc.) went to
+   Apache's error log, never to the browser or `SDCardRecover.log`. Verify's
+   actual reason for exiting immediately ("not mounted") existed, just
+   wasn't visible anywhere a user could see it.
+2. **No real exit-code reporting.** `streamCommand()` (`js/sdcard-recover.js`)
+   was inferring success from `xhr.status`, which a `passthru()`-streamed
+   response always returns as 200 regardless of what the wrapped script
+   actually exited with. `runMount()`'s fsck-fallback branch and
+   `runFsckCheck()`'s repair-offer branch could **never** run, no matter
+   what happened server-side - the "success" path always fired.
+
+Fixed by adding `2>&1` and appending a parseable `SDCR_EXITCODE:<n>` marker
+after `passthru()` returns; `streamCommand()` now parses that (not
+`xhr.status`) to determine real success/failure, stripping the marker from
+what's displayed/logged. Also added `scrollToMountLog()` (called from both
+fsck fallback paths) since the retried mount/verify write into Step 2's main
+log panel, not the nested fsck sub-box the user is actually looking at when
+a check/repair finishes - confirmed confusing on real hardware when a
+repair that had actually succeeded read as "nothing happened."
+
+With this fixed, the full chain was validated end-to-end on the real
+trashed card: failed mount -> `fsck -n` correctly found real errors (using
+an automatically-recovered backup superblock - ext4's own resilience, not
+this plugin's) -> confirmed `fsck -y` repair (which itself reported a
+partial failure, exit 12, "unable to set superblock flags") -> automatic
+mount retry succeeded anyway -> Verify found all tracked files readable
+again, zero data loss. Worth calling out: the code retries the mount after
+repair *unconditionally*, regardless of the repair's own exit code - had it
+treated a nonzero repair exit as "give up," this successful recovery would
+have been missed.
+
+## Validated on real hardware
+
+Real second FPP SD card (`Pi3Test`), read over USB by a second FPP device
+(`GPIOTest`), with a full raw `dd` image taken first so corruption tests
+were safely reversible. Confirmed working end-to-end:
+
+- Scan -> Mount (read-only, ext4 partition correctly chosen over the vfat
+  boot partition) -> Verify -> Evaluate -> Recover, on a healthy card
+- Recover to **local** storage, category-selective, restoring directly into
+  `/home/fpp/media/<category>/`
+- Recover to a **second USB drive** (including onto a real FAT-formatted
+  stick, exercising the `-rth` vs `-avh` rsync-flags fix)
+- Recover to a **zip** download
+- The full **fsck fallback chain** on a genuinely trashed superblock: failed
+  mount -> `fsck -n` diagnosis -> confirmed `fsck -y` repair -> automatic
+  mount retry -> clean Verify, zero data loss (see the section above)
+
+**Not yet validated:**
+
+1. **Config restore actually changing this device's identity on reboot.**
+   The original test (restore Config onto `GPIOTest` from `Pi3Test`, reboot,
+   check the hostname) is what surfaced the `settings`/`timezone` gap in the
+   first place - the code was fixed, but testing then moved on to the File
+   Copy Backup cross-check and the corruption/fsck work below rather than
+   circling back to redo that exact reboot test with the fix in place. Fixed
+   in code and reasoned through, not yet reconfirmed against a real reboot.
+2. **The "some files unreadable" path, with a genuine I/O error** (as
+   opposed to silent data corruption). Confirmed during testing: writing
+   `/dev/urandom` over live SD card sectors changes their *content* but
+   doesn't produce a real read failure - flash storage just returns
+   whatever's there, corrupted or not, without raising an I/O error unless
+   there's an actual unrecoverable hardware fault. `sdcard_verify.sh`'s
+   dd-based check can only ever catch genuine read failures, by design -
+   silent content corruption is outside what a checksumless read test can
+   detect. Testing this path properly needs a `dm-flakey`/loopback virtual
+   device configured to actually return I/O errors for chosen byte ranges,
+   which real SD hardware can't be made to do on demand.
+3. **photorec's `/cmd` micro-syntax is finicky and version-dependent** - the
    exact extension-whitelist syntax in `sdcard_carve.sh` needs to be tested
    against the `testdisk` package version FPP actually ships, and may need
-   `partition_order` / `search` flags adjusted.
-2. **`sdcard_evaluate.sh`'s target directory list** (`TARGET_DIRS` in
-   `sdcard_verify.sh`) assumes a standard FPP media layout; confirm against
-   whatever FPP version/config the target systems run.
-3. **Sudo/permissions**: every script assumes it's invoked via `sudo` from the
+   `partition_order` / `search` flags adjusted. The deep-scan/carving path
+   has not been exercised at all yet.
+4. **Sudo/permissions**: every script assumes it's invoked via `sudo` from the
    web server user, matching FPP core's own pattern in `backups.php` - the
    plugin's sudoers entry (if FPP requires one per-plugin) isn't set up here.
-4. No automated tests - this needs to be exercised against a real second SD
-   card (ideally one deliberately corrupted in a VM/loopback device first)
-   before pointing it at an irreplaceable show's card.
+   (Real testing so far hasn't hit a permissions problem, but that's not the
+   same as this being formally set up.)
 
 ## Installing this for testing (not yet in FPP's Plugin Manager search)
 
