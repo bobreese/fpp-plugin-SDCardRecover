@@ -87,6 +87,7 @@ case "$DEST_TYPE" in
         # what happened the first time this ran.
         if [ "$RESTORING_CONFIG" -eq 1 ]; then
             grep -x 'settings' "$FILELIST" >> "$CAT_FILELIST" || true
+            grep -x 'timezone' "$FILELIST" >> "$CAT_FILELIST" || true
         fi
 
         CAT_COUNT=$(wc -l < "$CAT_FILELIST")
@@ -108,6 +109,10 @@ case "$DEST_TYPE" in
                 log "Backing up this device's CURRENT settings file to $SETTINGS_BACKUP first."
                 cp -a /home/fpp/media/settings "$SETTINGS_BACKUP"
             fi
+            if [ -f /home/fpp/media/timezone ]; then
+                TIMEZONE_BACKUP="/home/fpp/media/timezone.before-recover-$(date +%Y%m%d-%H%M%S)"
+                cp -a /home/fpp/media/timezone "$TIMEZONE_BACKUP"
+            fi
         fi
 
         log "Restoring $CAT_COUNT file(s) directly into /home/fpp/media/ (categories: ${CATS[*]})"
@@ -121,6 +126,7 @@ case "$DEST_TYPE" in
                 log "Config was overwritten - restart FPPD (or reboot) for the new settings (including HostName/network) to take effect."
                 [ -n "$CONFIG_BACKUP" ] && log "  Previous config saved to $CONFIG_BACKUP"
                 [ -n "$SETTINGS_BACKUP" ] && log "  Previous settings file saved to $SETTINGS_BACKUP"
+                [ -n "$TIMEZONE_BACKUP" ] && log "  Previous timezone file saved to $TIMEZONE_BACKUP"
             fi
         else
             log "FAILED (rsync exit $RC). /home/fpp/media/ may be partially updated."

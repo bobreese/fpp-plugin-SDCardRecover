@@ -139,7 +139,9 @@
                         <label><input type="checkbox" class="sdcr-local-cat" value="music"> Music</label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="videos"> Videos</label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="effects"> Effects</label>
-                        <label><input type="checkbox" class="sdcr-local-cat" value="channeloutputs"> Channel Outputs</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="scripts"> Scripts</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="events"> Events</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="channelmemorymaps"> Pixel Overlay Models (legacy)</label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="playlists"> Playlists</label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="images"> Images</label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="plugins"> Plugins</label>

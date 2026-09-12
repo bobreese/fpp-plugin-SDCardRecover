@@ -25,13 +25,25 @@ ensure_state_dir
 # a bare "config" (as an earlier version of this had, alongside "media/...")
 # would have meant /home/fpp/config, which has never been a real FPP path;
 # config lives under media, at /home/fpp/media/config.
+# "channeloutputs" was here before and has been removed: confirmed against
+# FPP's own www/backup.php ($system_config_areas, www/config.php) that no
+# such directory has ever existed - channel output settings are files
+# (channeloutputs.json, universes.json, etc.) directly inside config/,
+# already covered by that category below. That same source is what
+# surfaced "scripts", "events", and "channelmemorymaps" as real,
+# previously-missed directories:
+#   $scriptDirectory          = mediaDirectory . "/scripts"           (Command/Event scripts)
+#   $eventDirectory           = mediaDirectory . "/events"
+#   $system_config_areas['channelmemorymaps']['file'] = mediaDirectory . "/channelmemorymaps"  (legacy Pixel Overlay Models)
 TARGET_DIRS=(
     "home/fpp/media/config"
     "home/fpp/media/sequences"
     "home/fpp/media/music"
     "home/fpp/media/videos"
     "home/fpp/media/effects"
-    "home/fpp/media/channeloutputs"
+    "home/fpp/media/scripts"
+    "home/fpp/media/events"
+    "home/fpp/media/channelmemorymaps"
     "home/fpp/media/playlists"
     "home/fpp/media/images"
     "home/fpp/media/plugins"
@@ -44,8 +56,11 @@ TARGET_DIRS=(
 # of media/config/, not inside it or any other TARGET_DIRS entry. Missing
 # this specifically is why restoring "config" changed nothing about a
 # device's identity on reboot - the actual settings never got captured.
+# "timezone" ($timezoneFile = mediaDirectory . "/timezone") is the same kind
+# of top-level flat file, holding the device's configured timezone.
 TARGET_FILES=(
     "home/fpp/media/settings"
+    "home/fpp/media/timezone"
 )
 
 TOTAL=0
@@ -84,7 +99,7 @@ done
 for rel in "${TARGET_FILES[@]}"; do
     f="$MOUNTPOINT/$rel"
     [ -f "$f" ] || continue
-    log "Verifying $rel (device settings file) ..."
+    log "Verifying $rel ..."
     verify_one_file "$f"
 done
 

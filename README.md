@@ -223,13 +223,46 @@ captured, verified, or restored, no matter what categories were selected -
 "config" was restoring plugin/model JSON files under `config/`, but never
 touching the one file that actually holds the device's name.
 
-Fixed by adding a `TARGET_FILES` list (currently just this one file) to
-`sdcard_verify.sh`, read-tested the same way as everything else, and folding
-it into the `config` category in `sdcard_recover.sh` (it doesn't match the
-`^config/` path-prefix filter everything else uses, since it isn't under a
-`config/` subfolder at all, so it's bundled in explicitly). Also now backed
-up separately (`settings.before-recover-<timestamp>`), alongside the
-existing `config/` directory backup, before either is touched.
+Fixed by adding a `TARGET_FILES` list to `sdcard_verify.sh`, read-tested the
+same way as everything else, and folding it into the `config` category in
+`sdcard_recover.sh` (it doesn't match the `^config/` path-prefix filter
+everything else uses, since it isn't under a `config/` subfolder at all, so
+it's bundled in explicitly). Also now backed up separately
+(`settings.before-recover-<timestamp>`), alongside the existing `config/`
+directory backup, before either is touched.
+
+## Categories cross-checked against FPP's own JSON config backup
+
+Since FPP's own JSON configuration backup (`www/backup.php`,
+`$system_config_areas`) already has the maintainer-verified, canonical
+answer to "what counts as FPP's config," it made sense to check our
+category list against it directly rather than keep discovering gaps one
+real-hardware test at a time. That turned up one real mistake and two real
+gaps:
+
+- **`channeloutputs` was never a real directory** - confirmed against
+  `$system_config_areas['channelOutputs']` and `www/config.php`: channel
+  output settings are files (`config/channeloutputs.json`,
+  `config/universes.json`, etc.) directly inside `config/`, already covered
+  by that category. This TARGET_DIRS entry never pointed at anything real,
+  which is consistent with it silently never showing up in any verify log
+  across every real-hardware test so far - not because the card lacked it,
+  but because the path itself was never valid on any FPP install. Removed.
+- **`media/scripts` and `media/events`** (`$scriptDirectory`,
+  `$eventDirectory` in `www/config.php`) - Command/Event scripts, real
+  directories that were simply never on the list at all.
+- **`media/channelmemorymaps`** (`$system_config_areas['channelmemorymaps']`)
+  - legacy Pixel Overlay Models, a real directory distinct from (and never
+  the same as) the fabricated `channeloutputs`.
+- **`media/timezone`** (`$timezoneFile` in `www/config.php`) - another flat
+  top-level file like `settings`, holding the device's configured timezone;
+  folded into the `config` category the same way `settings` is, and backed
+  up the same way before being overwritten.
+
+`CATEGORY_RE` (`scripts/common.sh`), `TARGET_DIRS`/`TARGET_FILES`
+(`sdcard_verify.sh`), the config-category bundling and backups
+(`sdcard_recover.sh`), and the Step 5 checkbox list (`status.php`) were all
+updated together so they can't drift out of sync with each other again.
 
 ## Known gaps before this runs on real hardware
 

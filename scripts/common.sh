@@ -23,7 +23,16 @@ DEVICE_RE='^(sd[a-z][0-9]*|mmcblk[0-9]+p?[0-9]*|nvme[0-9]+n[0-9]+p?[0-9]*)$'
 
 # Kept in sync with sdcard_verify.sh's TARGET_DIRS (minus the home/fpp/media/
 # prefix) - the set of categories a local restore is allowed to target.
-CATEGORY_RE='^(config|sequences|music|videos|effects|channeloutputs|playlists|images|plugins|upload)$'
+#
+# "channeloutputs" was here before and has been removed: confirmed against
+# FPP's own www/backup.php ($system_config_areas) that no such directory has
+# ever existed - channel output settings are files (channeloutputs.json,
+# universes.json, etc.) directly inside config/, already covered by that
+# category. Added "scripts" (mediaDirectory/scripts, Command/Event scripts)
+# and "channelmemorymaps" (mediaDirectory/channelmemorymaps, legacy Pixel
+# Overlay Models) and "events" (mediaDirectory/events) - all real,
+# previously-missed directories from that same source.
+CATEGORY_RE='^(config|sequences|music|videos|effects|scripts|events|channelmemorymaps|playlists|images|plugins|upload)$'
 
 validate_device() {
     local dev="$1"
