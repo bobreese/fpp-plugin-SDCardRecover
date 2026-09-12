@@ -130,7 +130,30 @@
         </div>
         <div class="sdcr-step-body">
             <div class="sdcr-dest-options">
-                <label><input type="checkbox" name="sdcr-dest" value="local"> Local FPP storage (media/Recovered/)</label><br>
+                <label><input type="checkbox" name="sdcr-dest" value="local"> Restore directly into this FPP's own media folders</label>
+                <div id="sdcr-local-categories" style="display:none; margin: 0.4em 0 0.8em 1.6em;">
+                    <div class="sdcr-hint">Choose what to bring in - only the checked categories are touched, and only files already found readable in Step 2.</div>
+                    <label><input type="checkbox" class="sdcr-local-cat" value="config"> Config <span class="sdcr-warn">(see warning below)</span></label><br>
+                    <label><input type="checkbox" class="sdcr-local-cat" value="sequences"> Sequences</label><br>
+                    <label><input type="checkbox" class="sdcr-local-cat" value="music"> Music</label><br>
+                    <label><input type="checkbox" class="sdcr-local-cat" value="videos"> Videos</label><br>
+                    <label><input type="checkbox" class="sdcr-local-cat" value="effects"> Effects</label><br>
+                    <label><input type="checkbox" class="sdcr-local-cat" value="channeloutputs"> Channel Outputs</label><br>
+                    <label><input type="checkbox" class="sdcr-local-cat" value="playlists"> Playlists</label><br>
+                    <label><input type="checkbox" class="sdcr-local-cat" value="images"> Images</label><br>
+                    <label><input type="checkbox" class="sdcr-local-cat" value="plugins"> Plugins</label><br>
+                    <label><input type="checkbox" class="sdcr-local-cat" value="upload"> Upload</label>
+
+                    <div id="sdcr-config-warning" class="sdcr-danger" style="display:none; margin-top:0.6em; padding:0.6em; border:1px solid currentColor; border-radius:4px;">
+                        Including <strong>Config</strong> will overwrite ALL configuration on
+                        <strong>this active device</strong> - its Name, IP address (if statically
+                        set), plugin settings, channel output setup, and everything else under
+                        Settings - with the recovered device's config. This device's current
+                        config is backed up automatically first, but once you restart FPPD (or
+                        reboot), this device effectively becomes the damaged card's identity.
+                        <label><input type="checkbox" id="sdcr-config-confirm"> I understand and want to proceed</label>
+                    </div>
+                </div>
                 <label><input type="checkbox" name="sdcr-dest" value="usb"> A second attached USB drive (must already have a filesystem on it - this won't format one)
                     <select id="sdcr-usb-target" disabled><option value="">Select a destination USB drive...</option></select>
                     <button type="button" id="sdcr-btn-refresh-usb" class="btn" title="Rescan for destination drives - use this if you plugged one in after Step 1">Refresh</button>

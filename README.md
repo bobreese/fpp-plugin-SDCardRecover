@@ -19,10 +19,20 @@ without running any destructive repair unless the user explicitly asks for it.
   signature-based carving via `photorec` (`sdcard_carve.sh`, slower, works
   even when the filesystem won't mount at all). The UI tells the user what
   was found by each and what's still missing.
-- **Destinations:** local FPP storage (`media/Recovered/<timestamp>/`), a
-  second attached USB drive, or a zip built for browser download - all three,
-  user's choice, matching FPP's existing Copy Settings (USB) and JSON config
-  backup (download) patterns.
+- **Destinations:** local FPP storage, a second attached USB drive, or a zip
+  built for browser download - all three, user's choice, matching FPP's
+  existing Copy Settings (USB) and JSON config backup (download) patterns.
+  Local restore is category-selective and goes directly into this device's
+  real `/home/fpp/media/<category>/` directories (not a side staging
+  folder) - the user picks which of config/sequences/music/videos/effects/
+  channeloutputs/playlists/images/plugins/upload to bring in. **Config is
+  special-cased**: since `/home/fpp/media/config` holds this active device's
+  own name, IP (if statically set), plugin settings, and channel output
+  setup, restoring it overwrites this device's own identity, not just adds
+  files. The UI requires an explicit "I understand" confirmation before
+  Config can be included, and `sdcard_recover.sh` backs up this device's
+  current config to `config.before-recover-<timestamp>` unconditionally
+  before ever touching it, regardless of what the UI already confirmed.
 - **Persistent logging.** Every step is appended to `media/logs/SDCardRecover.log`
   (FPP's own log directory - `www/config.php`'s `$logDirectory`, exposed to
   child processes as `$LOGDIR`), so it shows up automatically in FPP's File

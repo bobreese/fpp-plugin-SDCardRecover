@@ -7,7 +7,9 @@
 source "$(dirname "$0")/common.sh"
 
 DEST_TYPE="$1"   # local | usb | zip
-DEST_ARG="$2"    # usb: target device PARTITION (e.g. /dev/sdb1) | zip/local: unused
+DEST_ARG="$2"    # usb: target device PARTITION (e.g. /dev/sdb1)
+                 # local: comma-separated category list (e.g. "config,sequences")
+                 # zip: unused
 
 if [ -z "$DEST_TYPE" ]; then
     echo "ERROR: usage: sdcard_recover.sh <local|usb|zip> [dest-arg]" >&2
@@ -40,15 +42,66 @@ fi
 
 case "$DEST_TYPE" in
     local)
-        DEST="/home/fpp/media/Recovered/$(date +%Y%m%d-%H%M%S)"
-        mkdir -p "$DEST"
-        log "Recovering $COUNT file(s) to local storage: $DEST"
-        rsync -avh --progress --files-from="$FILELIST" "$SRC_ROOT/" "$DEST/"
+        # Restores directly into this FPP's OWN real media directories
+        # (/home/fpp/media/<category>/...), not a side "Recovered/" staging
+        # folder - the user picks which categories to bring in, and only
+        # those. Config is special-cased: it holds this device's own
+        # identity (name, IP if statically set, plugin settings, channel
+        # outputs, everything under Settings), so restoring it overwrites
+        # THIS device's own configuration with the damaged card's. The UI
+        # is expected to have already made the user explicitly confirm that
+        # - this script's job is to make it survivable if they didn't mean
+        # to: back up the current config before touching it, unconditionally.
+        IFS=',' read -ra REQUESTED_CATS <<< "$DEST_ARG"
+        CATS=()
+        for c in "${REQUESTED_CATS[@]}"; do
+            if [[ "$c" =~ $CATEGORY_RE ]]; then
+                CATS+=("$c")
+            elif [ -n "$c" ]; then
+                log "Ignoring unrecognized category '$c'"
+            fi
+        done
+        if [ ${#CATS[@]} -eq 0 ]; then
+            echo "ERROR: no valid category selected for local restore." >&2
+            rm -f "$FILELIST"
+            exit 1
+        fi
+
+        CAT_FILELIST=$(mktemp)
+        : > "$CAT_FILELIST"
+        for c in "${CATS[@]}"; do
+            grep -E "^${c}/" "$FILELIST" >> "$CAT_FILELIST" || true
+        done
+        CAT_COUNT=$(wc -l < "$CAT_FILELIST")
+        if [ "$CAT_COUNT" -eq 0 ]; then
+            log "No recoverable files found in the selected categories (${CATS[*]})."
+            rm -f "$FILELIST" "$CAT_FILELIST"
+            exit 1
+        fi
+
+        RESTORING_CONFIG=0
+        for c in "${CATS[@]}"; do
+            [ "$c" = "config" ] && RESTORING_CONFIG=1
+        done
+        if [ "$RESTORING_CONFIG" -eq 1 ] && [ -d /home/fpp/media/config ]; then
+            CONFIG_BACKUP="/home/fpp/media/config.before-recover-$(date +%Y%m%d-%H%M%S)"
+            log "WARNING: config is being restored - this overwrites THIS device's own name, IP (if static), plugin settings, and other core configuration."
+            log "Backing up this device's CURRENT config to $CONFIG_BACKUP first, in case this wasn't intended."
+            cp -a /home/fpp/media/config "$CONFIG_BACKUP"
+        fi
+
+        log "Restoring $CAT_COUNT file(s) directly into /home/fpp/media/ (categories: ${CATS[*]})"
+        rsync -avh --progress --files-from="$CAT_FILELIST" "$SRC_ROOT/" "/home/fpp/media/"
         RC=$?
+        rm -f "$CAT_FILELIST"
+
         if [ "$RC" -eq 0 ]; then
-            log "Done. Files available under $DEST"
+            log "Done. Restored into /home/fpp/media/ (categories: ${CATS[*]})"
+            if [ "$RESTORING_CONFIG" -eq 1 ]; then
+                log "Config was overwritten - restart FPPD (or reboot) for the new settings to take effect. This device's previous config was saved to $CONFIG_BACKUP"
+            fi
         else
-            log "FAILED (rsync exit $RC). Files under $DEST may be incomplete."
+            log "FAILED (rsync exit $RC). /home/fpp/media/ may be partially updated."
         fi
         ;;
     usb)

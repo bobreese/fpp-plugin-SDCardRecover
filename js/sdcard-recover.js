@@ -305,6 +305,28 @@
         return $all('input[name="sdcr-dest"]:checked').map(function (cb) { return cb.value; });
     }
 
+    function selectedLocalCategories() {
+        return $all('.sdcr-local-cat:checked').map(function (cb) { return cb.value; });
+    }
+
+    // Local restore is gated on more than "is a destination checked": if
+    // Config is among the chosen categories, the explicit "I understand"
+    // checkbox must also be checked, since that overwrites THIS device's
+    // own name/IP/plugin settings - see the warning text in status.php.
+    function updateRecoverButtonState() {
+        var localChecked = $('input[name="sdcr-dest"][value="local"]').checked;
+        $('#sdcr-local-categories').style.display = localChecked ? 'block' : 'none';
+
+        var configChecked = selectedLocalCategories().indexOf('config') !== -1;
+        $('#sdcr-config-warning').style.display = (localChecked && configChecked) ? 'block' : 'none';
+
+        var dests = selectedDestinations();
+        var blocked = localChecked && configChecked && !$('#sdcr-config-confirm').checked;
+        // Local also needs at least one category checked, not just the box.
+        var localNeedsCategory = localChecked && selectedLocalCategories().length === 0;
+        $('#sdcr-btn-recover').disabled = dests.length === 0 || blocked || localNeedsCategory;
+    }
+
     function runRecover() {
         var dests = selectedDestinations();
         if (dests.length === 0) return;
@@ -312,7 +334,12 @@
         function next(i) {
             if (i >= dests.length) return;
             var destType = dests[i];
-            var destArg = destType === 'usb' ? $('#sdcr-usb-target').value : '';
+            var destArg = '';
+            if (destType === 'usb') {
+                destArg = $('#sdcr-usb-target').value;
+            } else if (destType === 'local') {
+                destArg = selectedLocalCategories().join(',');
+            }
             streamCommand('recover', { destType: destType, destArg: destArg },
                 'sdcr-log-recover', 'sdcr-progress-recover', function (ok, text) {
                     if (destType === 'zip') {
@@ -348,8 +375,12 @@
         $all('input[name="sdcr-dest"]').forEach(function (cb) {
             cb.addEventListener('change', function () {
                 $('#sdcr-usb-target').disabled = !$('input[value="usb"]').checked;
-                $('#sdcr-btn-recover').disabled = selectedDestinations().length === 0;
+                updateRecoverButtonState();
             });
         });
+        $all('.sdcr-local-cat').forEach(function (cb) {
+            cb.addEventListener('change', updateRecoverButtonState);
+        });
+        $('#sdcr-config-confirm').addEventListener('change', updateRecoverButtonState);
     });
 })();

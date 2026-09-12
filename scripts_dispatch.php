@@ -68,6 +68,15 @@ function sdcr_dispatch($cmd, $args) {
                 // sdcard_recover.sh mounts itself - validate it the same way
                 // every other device argument is validated.
                 $destArg = sdcr_require_device($args, 'destArg');
+            } elseif ($destType === 'local') {
+                // destArg is a comma-separated category list (e.g.
+                // "config,sequences") - sdcard_recover.sh re-validates each
+                // one against CATEGORY_RE too, but reject anything
+                // malformed here before it ever reaches a shell command.
+                $destArg = isset($args['destArg']) ? $args['destArg'] : '';
+                if ($destArg === '' || !preg_match('/^[a-z]+(,[a-z]+)*$/', $destArg)) {
+                    throw new Exception('invalid category list for local restore');
+                }
             } else {
                 $destArg = isset($args['destArg']) ? $args['destArg'] : '';
             }

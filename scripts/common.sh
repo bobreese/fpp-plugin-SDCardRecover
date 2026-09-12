@@ -21,6 +21,10 @@ LOG_FILE="$LOG_DIR/SDCardRecover.log"
 # Whole-disk form (no trailing partition number) is also accepted for scan/fsck steps.
 DEVICE_RE='^(sd[a-z][0-9]*|mmcblk[0-9]+p?[0-9]*|nvme[0-9]+n[0-9]+p?[0-9]*)$'
 
+# Kept in sync with sdcard_verify.sh's TARGET_DIRS (minus the home/fpp/media/
+# prefix) - the set of categories a local restore is allowed to target.
+CATEGORY_RE='^(config|sequences|music|videos|effects|channeloutputs|playlists|images|plugins|upload)$'
+
 validate_device() {
     local dev="$1"
     local base
