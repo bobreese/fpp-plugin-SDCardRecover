@@ -77,7 +77,24 @@ case "$DEST_TYPE" in
         DEST="$DEST_MOUNTPOINT/SDCardRecover-$(date +%Y%m%d-%H%M%S)"
         mkdir -p "$DEST"
         log "Recovering $COUNT file(s) to USB drive: $DEST"
-        rsync -avh --progress --files-from="$FILELIST" "$SRC_ROOT/" "$DEST/"
+
+        # -a bundles owner/group/permission/symlink preservation, none of
+        # which FAT/exFAT/NTFS - the near-universal format for a plain USB
+        # flash drive - actually support. rsync doesn't fail the whole
+        # transfer over that, but does exit 23 ("partial transfer due to
+        # error") even when every file's actual DATA copied fine, which
+        # reads as a hard failure when it mostly wasn't one. Drop the
+        # metadata-preservation flags on filesystems that can't honor them.
+        DEST_FSTYPE=$(lsblk -no FSTYPE "$DEST_PART")
+        case "$DEST_FSTYPE" in
+            vfat|exfat|ntfs)
+                RSYNC_FLAGS="-rth"
+                ;;
+            *)
+                RSYNC_FLAGS="-avh"
+                ;;
+        esac
+        rsync $RSYNC_FLAGS --progress --files-from="$FILELIST" "$SRC_ROOT/" "$DEST/"
         RC=$?
 
         sync

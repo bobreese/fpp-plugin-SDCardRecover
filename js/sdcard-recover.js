@@ -3,11 +3,8 @@
  *
  * Streaming model mirrors FPP core's own backup pages: a long-lived XHR whose
  * onprogress handler reads the growing response text and appends only the new
- * chunk (see FPP's StreamURL() in www/js/fpp.js). If FPP's own StreamURL() is
- * already loaded on the page (it is, on any core FPP page), we reuse it so
- * this plugin behaves identically to Copy Settings / Remote Backups; if it
- * isn't available (e.g. testing this page standalone), we fall back to a
- * local implementation of the same pattern.
+ * chunk (see FPP's StreamURL() in www/js/fpp.js). Deliberately NOT calling
+ * StreamURL() itself, though - see streamCommand() below for why.
  *
  * NOTE: FPP's real backup/sync pages don't show a numeric percentage - the
  * "progress" you see there is the live rsync log text itself. There is no
@@ -25,6 +22,9 @@
         device: null,
         partition: null,
         usbDevices: [],
+        disks: {}, // device path -> {model, tran} - so the destination list
+                   // can show a model, not just a bare /dev/sdX path, to
+                   // actually distinguish e.g. two same-size USB sticks.
     };
 
     function $(sel) { return document.querySelector(sel); }
@@ -116,6 +116,7 @@
         var list = $('#sdcr-device-list');
         list.innerHTML = '';
         sdcr.usbDevices = [];
+        sdcr.disks = {};
         lines.filter(Boolean).forEach(function (line) {
             var obj;
             try { obj = JSON.parse(line); } catch (e) { return; }
@@ -123,6 +124,7 @@
                 sdcr.usbDevices.push(obj);
                 return;
             }
+            sdcr.disks[obj.device] = { model: obj.model, tran: obj.tran };
             var row = document.createElement('label');
             row.className = 'sdcr-device-row';
             row.innerHTML = '<input type="radio" name="sdcr-device" value="' + obj.device + '"> ' +
@@ -152,9 +154,11 @@
         usbSelect.innerHTML = '<option value="">Select a destination USB drive...</option>';
         sdcr.usbDevices.forEach(function (p) {
             if (p.parent === sdcr.device) return; // never offer the source card itself
+            var disk = sdcr.disks[p.parent] || {};
             var opt = document.createElement('option');
             opt.value = p.device;
-            opt.textContent = p.device + (p.fstype ? ' (' + p.fstype + ')' : '') + ' - ' + humanSize(p.size);
+            opt.textContent = p.device + (disk.model ? ' - ' + disk.model : '') +
+                (p.fstype ? ' (' + p.fstype + ')' : '') + ' - ' + humanSize(p.size);
             usbSelect.appendChild(opt);
         });
     }

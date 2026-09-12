@@ -174,6 +174,23 @@ actual exit code of rsync/zip before logging success - the original blindly
 logged "Done" regardless, which would have hidden a real failure the next
 time one happened for an unrelated reason.
 
+Two more from the same test run, once the mount fix above got a real second
+drive actually reachable:
+
+- **Destination dropdown couldn't distinguish two same-shaped drives** - it
+  only showed a bare device path (`/dev/sde1`). Now carries the parent disk's
+  model through (`sdcr.disks`, populated at scan time) into the label, e.g.
+  `/dev/sde1 - Cruzer U (vfat) - 14.7 GB`, matching how FPP's own File Copy
+  Backup page labels its own USB device dropdown.
+- **rsync exit 23 ("partial transfer due to error") on a real FAT-formatted
+  USB stick**, even though the files themselves landed intact and complete.
+  `-a` bundles owner/group/permission/symlink preservation, none of which
+  FAT32/exFAT/NTFS - what a plain USB flash drive is almost always formatted
+  as - can actually hold, so rsync exits non-zero over metadata it was never
+  going to be able to set, not over the file data. `sdcard_recover.sh` now
+  checks the destination's fstype and drops those flags (`-rth` instead of
+  `-avh`) for vfat/exfat/ntfs targets.
+
 ## Known gaps before this runs on real hardware
 
 This was written without access to a live FPP checkout or a Raspberry Pi to
