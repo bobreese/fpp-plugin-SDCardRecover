@@ -56,20 +56,23 @@
         Object.keys(args || {}).forEach(function (k) {
             qs += '&args[' + encodeURIComponent(k) + ']=' + encodeURIComponent(args[k]);
         });
+        // Cache-bust: an identical repeat request (e.g. clicking Rescan right
+        // after Scan) could otherwise be served from the browser's HTTP
+        // cache instead of actually re-running - the same reason FPP's own
+        // StreamURL() sets cache:false on every call.
+        qs += '&_=' + Date.now();
         var url = sdcrPageUrl('stream.php', qs);
 
-        var useCore = (typeof window.StreamURL === 'function');
-        if (useCore) {
-            // Reuse FPP core's own streaming helper so behavior matches
-            // Copy Settings / Remote Backups exactly.
-            window.StreamURL(url, logEl, function (ok) {
-                setProgress(progressId, false);
-                onDone(ok, logEl.textContent);
-            });
-            return;
-        }
-
-        // Fallback: same onprogress-diffing technique StreamURL() uses.
+        // Deliberately NOT using FPP core's window.StreamURL() here: its
+        // doneCallback/errorCallback are looked up as GLOBAL FUNCTION NAMES
+        // by string (window[doneCallback](id)), not invoked as JS closures -
+        // confirmed in www/js/fpp.js. Passing an inline function (as an
+        // earlier version of this file did) makes that lookup silently
+        // resolve to undefined and throw inside StreamURL's own .done()
+        // handler, so onDone() never ran - the request completed on the
+        // server (confirmed by running the script directly) but the UI never
+        // found out. Same onprogress-diffing technique StreamURL() uses
+        // internally, just wired through a real callback closure instead.
         var xhr = new XMLHttpRequest();
         var lastLen = 0;
         xhr.open('GET', url, true);
@@ -224,7 +227,7 @@
     }
 
     function runEvaluate() {
-        fetch(sdcrPageUrl('api.php', 'endpoint=evaluate'))
+        fetch(sdcrPageUrl('api.php', 'endpoint=evaluate&_=' + Date.now()), { cache: 'no-store' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 var el = $('#sdcr-evaluate-result');
