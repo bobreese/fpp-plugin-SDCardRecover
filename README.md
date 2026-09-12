@@ -342,6 +342,20 @@ https://raw.githubusercontent.com/bobreese/fpp-plugin-SDCardRecover/main/pluginI
 normally shows you - see the plugin's own troubleshooting notes for why
 that distinction matters).
 
+**Known cosmetic limitation of this path**: the manually-loaded "Available"
+card shows initials ("SR") instead of the real icon, and this is not
+fixable from the plugin's side. Confirmed in FPP's own
+`www/api/controllers/plugin.php` (`PluginServeIcon()`): the icon is resolved
+in exactly three tiers - (1) a local `icon.png` in the plugin's own
+directory, (2) that installed plugin's own `pluginInfo.json` `iconURL`, (3)
+the `iconURL` from the *official, server-cached* `pluginList.json` entry for
+that repo. A manually-loaded, not-yet-installed, unlisted plugin satisfies
+none of these - the pasted URL only ever lives in the browser's own JS
+memory, never reaches the server, and there is no fourth tier for that. The
+icon displays correctly the moment the plugin is actually installed (Tier 1
+applies as soon as `icon.png` exists on disk) - this is purely a pre-install
+preview quirk of the developer-only manual-URL workflow.
+
 ## Suggested repo name
 
 FPP's plugin-manager convention names repos `fpp-plugin-<Name>` (see
