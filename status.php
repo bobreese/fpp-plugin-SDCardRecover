@@ -146,6 +146,7 @@
                         <label><input type="checkbox" class="sdcr-local-cat" value="images"> Images</label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="plugins"> Plugins</label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="upload"> Upload</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="backups"> Backups</label>
                     </div>
 
                     <div id="sdcr-config-warning" class="sdcr-danger" style="display:none; margin-top:0.6em; padding:0.6em; border:1px solid currentColor; border-radius:4px;">

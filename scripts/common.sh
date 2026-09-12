@@ -31,8 +31,12 @@ DEVICE_RE='^(sd[a-z][0-9]*|mmcblk[0-9]+p?[0-9]*|nvme[0-9]+n[0-9]+p?[0-9]*)$'
 # category. Added "scripts" (mediaDirectory/scripts, Command/Event scripts)
 # and "channelmemorymaps" (mediaDirectory/channelmemorymaps, legacy Pixel
 # Overlay Models) and "events" (mediaDirectory/events) - all real,
-# previously-missed directories from that same source.
-CATEGORY_RE='^(config|sequences|music|videos|effects|scripts|events|channelmemorymaps|playlists|images|plugins|upload)$'
+# previously-missed directories from that same source. Added "backups"
+# (mediaDirectory/backups) after cross-checking against FPP's OTHER backup
+# tool, scripts/copy_settings_to_storage.sh ("File Copy Backup") - its own
+# named "Backups" action, distinct from config/backups (JSON config backup
+# archive, already covered inside the config category).
+CATEGORY_RE='^(config|sequences|music|videos|effects|scripts|events|channelmemorymaps|playlists|images|plugins|upload|backups)$'
 
 validate_device() {
     local dev="$1"

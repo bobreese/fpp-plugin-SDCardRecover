@@ -264,6 +264,30 @@ gaps:
 (`sdcard_recover.sh`), and the Step 5 checkbox list (`status.php`) were all
 updated together so they can't drift out of sync with each other again.
 
+## Cross-checked against FPP's OTHER backup tool too (File Copy Backup)
+
+FPP actually has two separate, maintainer-verified canonical lists of
+"what matters": the JSON config backup above, and
+`scripts/copy_settings_to_storage.sh` (the "File Copy Backup" page this
+plugin's UI/progress model is patterned on in the first place). Its named
+actions (All, Music, Sequences, Scripts, Plugins, Images, Events, Effects,
+Videos, EEPROM, Playlists, Backups, JsonBackups, Configuration) turned up
+two more real things:
+
+- **`media/backups`** is its own real, separate directory (the "Backups"
+  action's `$SOURCE/backups`) - distinct from `config/backups` (JSON config
+  backup archive, already covered inside the `config` category). Added as
+  its own category.
+- **`config/cape-eeprom.bin` is explicitly excluded** from FPP's own
+  "Configuration" copy action - it's BeagleBone-specific virtual EEPROM cape
+  data, hardware identity that doesn't make sense to carry onto different
+  physical hardware, unlike everything else under `config/`. Our `config`
+  category walks every file under `config/` recursively, so without an
+  explicit skip it would have blindly included this. Added
+  `SKIP_FILES_RELATIVE`/`is_skipped_file()` in `sdcard_verify.sh` to exclude
+  it specifically, matching FPP's own convention, while still walking
+  everything else under `config/` as before.
+
 ## Known gaps before this runs on real hardware
 
 This was written without access to a live FPP checkout or a Raspberry Pi to

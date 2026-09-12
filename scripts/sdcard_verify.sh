@@ -35,6 +35,10 @@ ensure_state_dir
 #   $scriptDirectory          = mediaDirectory . "/scripts"           (Command/Event scripts)
 #   $eventDirectory           = mediaDirectory . "/events"
 #   $system_config_areas['channelmemorymaps']['file'] = mediaDirectory . "/channelmemorymaps"  (legacy Pixel Overlay Models)
+# "backups" ($SOURCE/backups in scripts/copy_settings_to_storage.sh, FPP's
+# "File Copy Backup" tool) is its own real, separate directory - distinct
+# from config/backups (FPP's JSON config backup archive, already covered
+# recursively as part of the config/ category below).
 TARGET_DIRS=(
     "home/fpp/media/config"
     "home/fpp/media/sequences"
@@ -48,7 +52,25 @@ TARGET_DIRS=(
     "home/fpp/media/images"
     "home/fpp/media/plugins"
     "home/fpp/media/upload"
+    "home/fpp/media/backups"
 )
+
+# copy_settings_to_storage.sh's "Configuration" action explicitly EXCLUDES
+# this one file from a generic config copy - it's a BeagleBone-specific
+# virtual EEPROM cape file, hardware identity that doesn't make sense to
+# carry onto different physical hardware, unlike everything else under
+# config/. Skipped here for the same reason, even though it lives inside
+# the config/ directory we otherwise walk recursively.
+SKIP_FILES_RELATIVE=(
+    "home/fpp/media/config/cape-eeprom.bin"
+)
+is_skipped_file() {
+    local rel="$1"
+    for skip in "${SKIP_FILES_RELATIVE[@]}"; do
+        [ "$rel" = "$skip" ] && return 0
+    done
+    return 1
+}
 
 # FPP's actual device identity (HostName, network config, output settings -
 # everything $settings[] holds) lives in this ONE flat key=value file
@@ -69,8 +91,9 @@ BAD=0
 
 verify_one_file() {
     local f="$1"
-    TOTAL=$((TOTAL+1))
     local rel_f="${f#$MOUNTPOINT/}"
+    is_skipped_file "$rel_f" && return 0
+    TOTAL=$((TOTAL+1))
     local expected
     expected=$(stat -c '%s' "$f" 2>/dev/null)
     # Read the whole file through dd; a bad sector surfaces as a non-zero
