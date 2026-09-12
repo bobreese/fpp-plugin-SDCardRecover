@@ -1,0 +1,54 @@
+.sdcr-wizard { max-width: 900px; }
+.sdcr-intro { margin-bottom: 1em; padding: 0.75em; background: #f0f4f8; border-left: 3px solid #3a7bd5; }
+
+.sdcr-step {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 1em;
+    padding: 0.75em 1em;
+    transition: opacity 0.2s;
+}
+.sdcr-step.sdcr-disabled { opacity: 0.5; }
+
+.sdcr-step-header { display: flex; align-items: center; gap: 0.6em; margin-bottom: 0.5em; }
+.sdcr-step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.6em; height: 1.6em; border-radius: 50%;
+    background: #3a7bd5; color: #fff; font-weight: bold; flex-shrink: 0;
+}
+.sdcr-step-title { font-weight: bold; flex-grow: 1; }
+
+.sdcr-hint { color: #555; font-size: 0.9em; }
+.sdcr-warn { color: #8a6d00; }
+.sdcr-danger { color: #a30000; font-weight: bold; }
+
+.sdcr-log {
+    background: #111; color: #ddd; font-family: monospace; font-size: 0.85em;
+    padding: 0.6em; max-height: 220px; overflow-y: auto; white-space: pre-wrap;
+    border-radius: 3px; margin-top: 0.5em; min-height: 2em;
+}
+
+.sdcr-progress { margin: 0.5em 0; }
+.sdcr-progress-bar {
+    height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; position: relative;
+}
+.sdcr-progress-fill { height: 100%; width: 100%; background: #3a7bd5; }
+.sdcr-progress-active .sdcr-progress-fill {
+    background: linear-gradient(90deg, #3a7bd5 25%, #8bb8f0 50%, #3a7bd5 75%);
+    background-size: 200% 100%;
+    animation: sdcr-stripe 1.2s linear infinite;
+}
+.sdcr-progress-done .sdcr-progress-fill { background: #2e9e44; }
+@keyframes sdcr-stripe {
+    from { background-position: 200% 0; }
+    to { background-position: 0 0; }
+}
+
+.sdcr-device-list { margin-bottom: 0.5em; }
+.sdcr-device-row { display: block; padding: 0.3em 0; }
+
+.sdcr-summary { margin-top: 0.5em; padding: 0.5em; background: #f7f7f7; border-radius: 3px; }
+.sdcr-eval-table td { padding: 0.2em 0.8em 0.2em 0; }
+
+.sdcr-dest-options label { display: block; margin-bottom: 0.4em; }
+.sdcr-fsck-fallback, .sdcr-deepscan-offer { margin-top: 0.75em; padding-top: 0.75em; border-top: 1px dashed #ccc; }
