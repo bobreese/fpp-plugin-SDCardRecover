@@ -4,7 +4,7 @@
    is auto-loaded on the same page (plugin.php scans css/ and injects every
    file it finds), !important here is the only way to override that inline
    style from within the plugin itself, without touching FPP core. */
-.pluginIconWrap { width: 3.5rem !important; height: 3.5rem !important; }
+.pluginIconWrap { width: 4.5rem !important; height: 4.5rem !important; }
 .pluginIconWrap .pluginIcon { width: 100% !important; height: 100% !important; object-fit: contain; }
 
 .sdcr-wizard { max-width: 900px; }
