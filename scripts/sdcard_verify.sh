@@ -17,18 +17,25 @@ fi
 ensure_state_dir
 : > "$MANIFEST"
 
-# Known FPP locations worth recovering. Adjust if your FPP media layout differs.
+# Known FPP locations worth recovering, relative to the mounted partition's
+# OWN root - which, now that guessPartition() (js/sdcard-recover.js) picks
+# the ext4 root partition rather than the small vfat boot partition, is the
+# card's actual filesystem root ("/"), not /home/fpp. So these need the full
+# home/fpp/media/... path, matching $mediaDirectory in FPP's own config.php -
+# a bare "config" (as an earlier version of this had, alongside "media/...")
+# would have meant /home/fpp/config, which has never been a real FPP path;
+# config lives under media, at /home/fpp/media/config.
 TARGET_DIRS=(
-    "config"
-    "media/sequences"
-    "media/music"
-    "media/videos"
-    "media/effects"
-    "media/channeloutputs"
-    "media/playlists"
-    "media/images"
-    "media/plugins"
-    "media/upload"
+    "home/fpp/media/config"
+    "home/fpp/media/sequences"
+    "home/fpp/media/music"
+    "home/fpp/media/videos"
+    "home/fpp/media/effects"
+    "home/fpp/media/channeloutputs"
+    "home/fpp/media/playlists"
+    "home/fpp/media/images"
+    "home/fpp/media/plugins"
+    "home/fpp/media/upload"
 )
 
 TOTAL=0

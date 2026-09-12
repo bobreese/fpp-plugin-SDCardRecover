@@ -168,9 +168,20 @@
     }
 
     function guessPartition(device) {
-        // First child partition of the selected disk, from the same scan data.
-        var part = sdcr.usbDevices.find(function (p) { return p.parent === device; });
-        return part ? part.device : device;
+        // An FPP SD card is boot (small vfat: bootloader/kernel only) + root
+        // (ext4: everything else, including /home/fpp/media/config,
+        // sequences, etc.) - config/media never live on the boot partition.
+        // Picking "the first partition" (sda1) grabbed the boot partition
+        // every time, which is why verify always found 0 files even on a
+        // card with real data on it. Prefer the ext4 partition; if none is
+        // found (not an FPP layout), fall back to the largest partition
+        // rather than blindly the first.
+        var parts = sdcr.usbDevices.filter(function (p) { return p.parent === device; });
+        if (parts.length === 0) return device;
+        var ext = parts.find(function (p) { return /^ext[234]$/.test(p.fstype || ''); });
+        if (ext) return ext.device;
+        parts.sort(function (a, b) { return (b.size || 0) - (a.size || 0); });
+        return parts[0].device;
     }
 
     function runMount() {
