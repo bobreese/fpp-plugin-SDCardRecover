@@ -275,11 +275,22 @@
         });
     }
 
+    // The retried mount/verify write into Step 2's own main log panel, not
+    // the nested fsck sub-box the user is actually looking at when this
+    // fires - confirmed confusing on real hardware (a repair that actually
+    // worked read as "nothing happened" because the success played out in a
+    // different, out-of-view panel). Scroll there so the retry is visible.
+    function scrollToMountLog() {
+        var el = $('#sdcr-log-mount');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
     function runFsckCheck() {
         streamCommand('fsck_check', { device: sdcr.partition }, 'sdcr-log-fsck-check', null, function (ok, text) {
             if (!ok) {
                 $('#sdcr-fsck-repair-offer').style.display = 'block';
             } else {
+                scrollToMountLog();
                 runMount(); // retry mount now that we've confirmed it's clean
             }
         });
@@ -287,6 +298,7 @@
 
     function runFsckRepair() {
         streamCommand('fsck_repair', { device: sdcr.partition }, 'sdcr-log-fsck-repair', null, function () {
+            scrollToMountLog();
             runMount(); // retry mount after repair
         });
     }
