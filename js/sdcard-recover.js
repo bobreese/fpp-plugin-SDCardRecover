@@ -112,9 +112,14 @@
         return extraQs ? url + '&' + extraQs : url;
     }
 
-    function renderDeviceList(lines) {
-        var list = $('#sdcr-device-list');
-        list.innerHTML = '';
+    // Populates sdcr.usbDevices/sdcr.disks from a scan's output lines.
+    // Shared by the Step 1 scan (which also builds the source-card radio
+    // list) and the Step 5 destination refresh (which must NOT touch Step 1
+    // - by then the source card is likely already mounted/verified, and
+    // rebuilding that radio list would silently lose the selection).
+    // Returns the whole-disk entries, in case the caller wants to render them.
+    function parseScanLines(lines) {
+        var disks = [];
         sdcr.usbDevices = [];
         sdcr.disks = {};
         lines.filter(Boolean).forEach(function (line) {
@@ -125,6 +130,16 @@
                 return;
             }
             sdcr.disks[obj.device] = { model: obj.model, tran: obj.tran };
+            disks.push(obj);
+        });
+        return disks;
+    }
+
+    function renderDeviceList(lines) {
+        var list = $('#sdcr-device-list');
+        list.innerHTML = '';
+        var disks = parseScanLines(lines);
+        disks.forEach(function (obj) {
             var row = document.createElement('label');
             row.className = 'sdcr-device-row';
             row.innerHTML = '<input type="radio" name="sdcr-device" value="' + obj.device + '"> ' +
@@ -139,6 +154,17 @@
                 $('#sdcr-btn-mount').disabled = false;
                 populateUsbDestinations();
             });
+        });
+    }
+
+    // Rescans for destination-drive candidates only - for a USB stick
+    // plugged in after Step 1 already ran. Deliberately doesn't touch
+    // #sdcr-device-list/the source radio buttons, since the source card may
+    // already be mounted and verified by the time someone needs this.
+    function refreshUsbDestinations() {
+        streamCommand('scan', {}, 'sdcr-log-usb-refresh', 'sdcr-progress-usb-refresh', function (ok, text) {
+            parseScanLines(text.split('\n'));
+            populateUsbDestinations();
         });
     }
 
@@ -317,6 +343,7 @@
         $('#sdcr-btn-carve').addEventListener('click', runCarve);
         $('#sdcr-btn-evaluate').addEventListener('click', runEvaluate);
         $('#sdcr-btn-recover').addEventListener('click', runRecover);
+        $('#sdcr-btn-refresh-usb').addEventListener('click', refreshUsbDestinations);
 
         $all('input[name="sdcr-dest"]').forEach(function (cb) {
             cb.addEventListener('change', function () {

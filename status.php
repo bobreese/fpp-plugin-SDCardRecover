@@ -133,7 +133,11 @@
                 <label><input type="checkbox" name="sdcr-dest" value="local"> Local FPP storage (media/Recovered/)</label><br>
                 <label><input type="checkbox" name="sdcr-dest" value="usb"> A second attached USB drive (must already have a filesystem on it - this won't format one)
                     <select id="sdcr-usb-target" disabled><option value="">Select a destination USB drive...</option></select>
-                </label><br>
+                    <button type="button" id="sdcr-btn-refresh-usb" class="btn" title="Rescan for destination drives - use this if you plugged one in after Step 1">Refresh</button>
+                </label>
+                <div class="sdcr-progress" id="sdcr-progress-usb-refresh" style="display:none;"><div class="sdcr-progress-bar"><div class="sdcr-progress-fill"></div></div></div>
+                <pre class="sdcr-log" id="sdcr-log-usb-refresh" style="display:none;"></pre>
+                <br>
                 <label><input type="checkbox" name="sdcr-dest" value="zip"> Zip file (download to your computer)</label>
             </div>
             <button type="button" id="sdcr-btn-recover" class="btn btn-primary" disabled>Recover</button>
