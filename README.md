@@ -65,6 +65,34 @@ scripts/
   fpp_uninstall.sh       Plugin Manager uninstall hook (leaves recovered data in place)
 ```
 
+## pluginInfo.json schema (confirmed against live FPP v10.x source)
+
+The initial scaffold guessed at this schema and got it wrong in ways that
+broke installation entirely. Confirmed by pulling FPP's actual
+`www/plugins.php` (the code that reads this file) and `fpp-plugin-Template`'s
+real `pluginInfo.json`:
+
+- **`repoName` is required** and must exactly match the GitHub repo name
+  (`fpp-plugin-SDCardRecover`). FPP's install/uninstall/update/icon lookups
+  are all keyed by this field, read directly out of the JSON - not derived
+  from `name` or `srcURL`. Omitting it is why "Install anyway" failed with
+  *"Could not find plugin in pluginInfo cache"*: the plugin got cached under
+  `repoName: undefined`, which doesn't match the string the Install button
+  was wired to look up.
+- **`description` is a single field**, not `shortDescription`/`longDescription`.
+- **`iconURL` must be an absolute URL** (e.g. a `raw.githubusercontent.com`
+  link), not a path relative to the repo - a relative one resolves against
+  nothing FPP can use and silently falls back to a text-initial avatar.
+- **Version compatibility is picky about explicit major-version coverage**:
+  a version entry with no explicit `maxFPPVersion` is only treated as
+  "compatible" with the FPP major version it was authored against
+  (`minFPPVersion`'s major) - an open-ended range starting at an old major
+  still gets flagged "not updated for FPP 10" on a v10 box. Since this
+  plugin has only ever been tested against v10.x (the original `7.0` minimum
+  was an unverified guess made during initial scaffolding, not a real
+  compatibility claim), `versions` now honestly declares `10.0` - `0`
+  (unbounded) only.
+
 ## Known gaps before this runs on real hardware
 
 This was written without access to a live FPP checkout or a Raspberry Pi to

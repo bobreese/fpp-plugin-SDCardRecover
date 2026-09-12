@@ -1,14 +1,18 @@
 {
+    "documentation": "https://github.com/bobreese/fpp-plugin-SDCardRecover/blob/main/README.md",
+    "repoName": "fpp-plugin-SDCardRecover",
     "name": "SDCard Recover",
     "author": "bobreese",
-    "shortDescription": "Scan, verify, and recover media/config from a damaged FPP SD card mounted over USB",
-    "longDescription": "Mounts a second, possibly-damaged FPP SD card as a USB storage device, checks it for readability without destructive repair by default, and lets you recover the config and media (sequences, music, videos, effects, playlists) that are still intact onto this FPP's local storage, a USB drive, or a downloadable zip.",
-    "srcURL": "https://github.com/bobreese/fpp-plugin-SDCardRecover",
-    "iconURL": "icon.png",
+    "description": "Mounts a second, possibly-damaged FPP SD card as a USB storage device, checks it for readability without destructive repair by default, and lets you recover the config and media (sequences, music, videos, effects, playlists) that are still intact onto this FPP's local storage, a USB drive, or a downloadable zip.",
+    "homeURL": "https://github.com/bobreese/fpp-plugin-SDCardRecover",
+    "srcURL": "https://github.com/bobreese/fpp-plugin-SDCardRecover.git",
+    "bugURL": "https://github.com/bobreese/fpp-plugin-SDCardRecover/issues",
+    "iconURL": "https://raw.githubusercontent.com/bobreese/fpp-plugin-SDCardRecover/main/icon.png",
+    "allowUpdates": 1,
     "versions": [
         {
-            "minFPPVersion": "7.0",
-            "maxFPPVersion": "",
+            "minFPPVersion": "10.0",
+            "maxFPPVersion": "0",
             "branch": "main",
             "sha": ""
         }
