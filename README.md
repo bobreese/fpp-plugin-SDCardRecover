@@ -328,6 +328,20 @@ Then either reboot, or activate it live without rebooting:
 curl -X POST http://localhost/api/fppd/plugin/fpp-plugin-SDCardRecover/load
 ```
 
+**Alternative**: FPP's Plugin Manager can also install directly from a
+`pluginInfo.json` URL, but only when the device's **UI Level** is set to
+**Developer** (Settings -> UI tab) - below that level, pasting a URL into
+the search box just runs a plain text search instead. With Developer level
+on, paste this into the Plugin Manager's search/URL box:
+
+```
+https://raw.githubusercontent.com/bobreese/fpp-plugin-SDCardRecover/main/pluginInfo.json
+```
+
+(the raw content URL, not the `github.com/.../blob/main/...` page a browser
+normally shows you - see the plugin's own troubleshooting notes for why
+that distinction matters).
+
 ## Suggested repo name
 
 FPP's plugin-manager convention names repos `fpp-plugin-<Name>` (see
