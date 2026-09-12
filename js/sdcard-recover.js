@@ -86,7 +86,25 @@
         };
         xhr.onload = function () {
             setProgress(progressId, false);
-            onDone(xhr.status === 200, logEl.textContent);
+            // xhr.status is just "did the HTTP request succeed" - always 200
+            // here regardless of what the wrapped shell script actually
+            // exited with. scripts_dispatch.php now appends a parseable
+            // SDCR_EXITCODE:<n> marker after passthru() returns; that real
+            // exit code, not HTTP status, is what "ok" means from here on -
+            // without this, a failed mount/fsck always looked like success
+            // and the fallback UI (fsck -n box, repair-offer box) could
+            // never appear.
+            var text = logEl.textContent;
+            var m = text.match(/\r?\nSDCR_EXITCODE:(-?\d+)\s*$/);
+            var exitOk;
+            if (m) {
+                exitOk = parseInt(m[1], 10) === 0;
+                text = text.slice(0, m.index);
+                logEl.textContent = text;
+            } else {
+                exitOk = (xhr.status === 200);
+            }
+            onDone(exitOk, text);
         };
         xhr.onerror = function () {
             setProgress(progressId, false);

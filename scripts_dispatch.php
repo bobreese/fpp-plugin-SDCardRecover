@@ -20,8 +20,27 @@ function sdcr_require_device($args, $key) {
 }
 
 function sdcr_passthru($script, $shellArgs) {
-    $cmd = 'sudo ' . escapeshellarg(SDCR_SCRIPTS . '/' . $script) . ' ' . implode(' ', $shellArgs);
-    passthru($cmd);
+    // Two real bugs fixed by this one change, confirmed on real hardware:
+    //
+    // 1. No 2>&1: a script's own `echo "ERROR: ..." >&2` (used for every
+    //    hard failure - "not mounted", "no manifest found", etc.) went to
+    //    Apache's error log, never to the browser or SDCardRecover.log. A
+    //    real trashed-superblock test showed sdcard_verify.sh start and
+    //    immediately finish (exit 1) with no visible reason why - the
+    //    actual error text existed, just not anywhere the user could see it.
+    //
+    // 2. No exit-code reporting: passthru() streams stdout live, but the
+    //    JS side (streamCommand()) was inferring success from the HTTP
+    //    request's own status code, which is always 200 regardless of
+    //    what the wrapped script actually exited with - passthru() alone
+    //    doesn't surface that to the HTTP response at all. So runMount()'s
+    //    fsck-fallback UI and runFsckCheck()'s repair-offer box could
+    //    NEVER appear, no matter what: the "success" branch always ran.
+    //    Capturing the real exit code and appending it as a parseable
+    //    marker line lets the JS tell the two apart correctly.
+    $cmd = 'sudo ' . escapeshellarg(SDCR_SCRIPTS . '/' . $script) . ' ' . implode(' ', $shellArgs) . ' 2>&1';
+    passthru($cmd, $rc);
+    echo "\nSDCR_EXITCODE:$rc\n";
 }
 
 function sdcr_dispatch($cmd, $args) {
