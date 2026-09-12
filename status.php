@@ -153,6 +153,16 @@
                         Settings - with the recovered device's config. This device's current
                         config is backed up automatically first, but once you restart FPPD (or
                         reboot), this device effectively becomes the damaged card's identity.
+                        <div class="sdcr-rollback-info">
+                            <strong>To roll back:</strong> the backup is saved to
+                            <code>/home/fpp/media/config.before-recover-&lt;timestamp&gt;</code>
+                            (the exact path is also written to
+                            <code>media/logs/SDCardRecover.log</code>). To restore it: stop FPPD,
+                            delete or rename the current <code>/home/fpp/media/config</code>,
+                            copy that backup folder back to <code>/home/fpp/media/config</code>,
+                            then restart FPPD (or reboot). This isn't automated - do it over SSH
+                            or FPP's File Manager.
+                        </div>
                         <label><input type="checkbox" id="sdcr-config-confirm"> I understand and want to proceed</label>
                     </div>
                 </div>

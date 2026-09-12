@@ -24,6 +24,15 @@
 .sdcr-warn-link { color: #8a6d00; text-decoration: underline; cursor: pointer; }
 .sdcr-warn-link:hover { color: #a30000; }
 
+.sdcr-rollback-info {
+    margin: 0.6em 0; padding-top: 0.5em; border-top: 1px dashed currentColor;
+    font-weight: normal; color: #333;
+}
+.sdcr-rollback-info code {
+    background: rgba(0,0,0,0.06); padding: 0.05em 0.3em; border-radius: 3px;
+    font-size: 0.9em;
+}
+
 /* Briefly flashes when "(see warning)" is clicked, so it's obvious the
    revealed box IS the warning being pointed at, not just newly appeared. */
 .sdcr-flash-highlight { animation: sdcr-flash 1.4s ease-out; }
