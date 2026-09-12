@@ -91,6 +91,27 @@ test against, so before trusting it on an actual damaged card:
    card (ideally one deliberately corrupted in a VM/loopback device first)
    before pointing it at an irreplaceable show's card.
 
+## Installing this for testing (not yet in FPP's Plugin Manager search)
+
+FPP's "Search Plugins" only searches the community-curated
+`pluginList.json` in `FalconChristmas/fpp-data`, which requires a PR and
+passing automated checks (license present, tested against latest release +
+nightly, safe scripting) - not just having a public repo with a valid
+`pluginInfo.json`. Until that submission happens, install manually for
+development:
+
+```bash
+ssh fpp@<your-fpp-ip>
+cd /home/fpp/media/plugins
+git clone https://github.com/bobreese/fpp-plugin-SDCardRecover.git
+```
+
+Then either reboot, or activate it live without rebooting:
+
+```bash
+curl -X POST http://localhost/api/fppd/plugin/fpp-plugin-SDCardRecover/load
+```
+
 ## Suggested repo name
 
 FPP's plugin-manager convention names repos `fpp-plugin-<Name>` (see
