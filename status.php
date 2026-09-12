@@ -27,6 +27,7 @@
         <div class="sdcr-step-header">
             <span class="sdcr-step-num">1</span>
             <span class="sdcr-step-title">Scan for a USB-attached SD card</span>
+            <span id="sdcr-no-card-msg" class="sdcr-warn" style="display:none;">Reattach USB SD Card</span>
             <button type="button" id="sdcr-btn-scan" class="btn btn-primary">Scan</button>
             <button type="button" id="sdcr-btn-rescan" class="btn" style="display:none;">Rescan</button>
         </div>

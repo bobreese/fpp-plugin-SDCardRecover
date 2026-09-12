@@ -147,6 +147,12 @@
             list.appendChild(row);
         });
 
+        // Sits next to Rescan so it's obvious a rescan is the fix - hidden
+        // again the moment any scan (not just this one) actually finds a
+        // card, rather than staying stuck on screen after the real problem
+        // is gone.
+        $('#sdcr-no-card-msg').style.display = disks.length === 0 ? 'inline' : 'none';
+
         $all('input[name="sdcr-device"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
                 sdcr.device = radio.value;
