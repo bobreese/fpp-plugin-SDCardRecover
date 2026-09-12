@@ -52,3 +52,19 @@
 
 .sdcr-dest-options label { display: block; margin-bottom: 0.4em; }
 .sdcr-fsck-fallback, .sdcr-deepscan-offer { margin-top: 0.75em; padding-top: 0.75em; border-top: 1px dashed #ccc; }
+
+/* Two side-by-side columns of category checkboxes, divided by a vertical
+   rule, instead of one long single-column stack - halves the vertical
+   space Step 5's category list takes up. */
+.sdcr-cat-grid {
+    columns: 2;
+    column-gap: 2em;
+    column-rule: 1px solid #ddd;
+    margin-top: 0.4em;
+}
+.sdcr-cat-grid label {
+    display: block;
+    break-inside: avoid;
+    margin-bottom: 0.5em;
+    padding-right: 0.5em;
+}

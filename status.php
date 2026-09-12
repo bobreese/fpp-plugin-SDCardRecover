@@ -133,16 +133,18 @@
                 <label><input type="checkbox" name="sdcr-dest" value="local"> Restore directly into this FPP's own media folders</label>
                 <div id="sdcr-local-categories" style="display:none; margin: 0.4em 0 0.8em 1.6em;">
                     <div class="sdcr-hint">Choose what to bring in - only the checked categories are touched, and only files already found readable in Step 2.</div>
-                    <label><input type="checkbox" class="sdcr-local-cat" value="config"> Config <span class="sdcr-warn">(see warning below)</span></label><br>
-                    <label><input type="checkbox" class="sdcr-local-cat" value="sequences"> Sequences</label><br>
-                    <label><input type="checkbox" class="sdcr-local-cat" value="music"> Music</label><br>
-                    <label><input type="checkbox" class="sdcr-local-cat" value="videos"> Videos</label><br>
-                    <label><input type="checkbox" class="sdcr-local-cat" value="effects"> Effects</label><br>
-                    <label><input type="checkbox" class="sdcr-local-cat" value="channeloutputs"> Channel Outputs</label><br>
-                    <label><input type="checkbox" class="sdcr-local-cat" value="playlists"> Playlists</label><br>
-                    <label><input type="checkbox" class="sdcr-local-cat" value="images"> Images</label><br>
-                    <label><input type="checkbox" class="sdcr-local-cat" value="plugins"> Plugins</label><br>
-                    <label><input type="checkbox" class="sdcr-local-cat" value="upload"> Upload</label>
+                    <div class="sdcr-cat-grid">
+                        <label><input type="checkbox" class="sdcr-local-cat" value="config"> Config <span class="sdcr-warn">(see warning)</span></label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="sequences"> Sequences</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="music"> Music</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="videos"> Videos</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="effects"> Effects</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="channeloutputs"> Channel Outputs</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="playlists"> Playlists</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="images"> Images</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="plugins"> Plugins</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="upload"> Upload</label>
+                    </div>
 
                     <div id="sdcr-config-warning" class="sdcr-danger" style="display:none; margin-top:0.6em; padding:0.6em; border:1px solid currentColor; border-radius:4px;">
                         Including <strong>Config</strong> will overwrite ALL configuration on
