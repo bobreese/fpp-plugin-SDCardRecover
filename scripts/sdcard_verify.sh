@@ -38,31 +38,54 @@ TARGET_DIRS=(
     "home/fpp/media/upload"
 )
 
+# FPP's actual device identity (HostName, network config, output settings -
+# everything $settings[] holds) lives in this ONE flat key=value file
+# (www/config.php: $settingsFile = $mediaDirectory . "/settings"), a sibling
+# of media/config/, not inside it or any other TARGET_DIRS entry. Missing
+# this specifically is why restoring "config" changed nothing about a
+# device's identity on reboot - the actual settings never got captured.
+TARGET_FILES=(
+    "home/fpp/media/settings"
+)
+
 TOTAL=0
 GOOD=0
 BAD=0
+
+verify_one_file() {
+    local f="$1"
+    TOTAL=$((TOTAL+1))
+    local rel_f="${f#$MOUNTPOINT/}"
+    local expected
+    expected=$(stat -c '%s' "$f" 2>/dev/null)
+    # Read the whole file through dd; a bad sector surfaces as a non-zero
+    # exit code or a short read, without writing anything back to the card.
+    local actual
+    actual=$(dd if="$f" of=/dev/null bs=1M 2>/tmp/sdcr_dd_err; echo $?)
+    if [ "$actual" = "0" ] && [ -n "$expected" ]; then
+        echo -e "${rel_f}\t${expected}\tOK" >> "$MANIFEST"
+        GOOD=$((GOOD+1))
+    else
+        echo -e "${rel_f}\t${expected:-0}\tUNREADABLE" >> "$MANIFEST"
+        BAD=$((BAD+1))
+        log "  UNREADABLE: $rel_f ($(cat /tmp/sdcr_dd_err | tail -1))"
+    fi
+}
 
 for rel in "${TARGET_DIRS[@]}"; do
     dir="$MOUNTPOINT/$rel"
     [ -d "$dir" ] || continue
     log "Verifying $rel ..."
     while IFS= read -r -d '' f; do
-        TOTAL=$((TOTAL+1))
-        rel_f="${f#$MOUNTPOINT/}"
-        expected=$(stat -c '%s' "$f" 2>/dev/null)
-        # Read the whole file through dd; a bad sector surfaces as a non-zero
-        # exit code or a short read, without writing anything back to the card.
-        actual=$(dd if="$f" of=/dev/null bs=1M 2>/tmp/sdcr_dd_err; echo $?)
-        read_bytes=$(stat -c '%s' "$f" 2>/dev/null)
-        if [ "$actual" = "0" ] && [ -n "$expected" ]; then
-            echo -e "${rel_f}\t${expected}\tOK" >> "$MANIFEST"
-            GOOD=$((GOOD+1))
-        else
-            echo -e "${rel_f}\t${expected:-0}\tUNREADABLE" >> "$MANIFEST"
-            BAD=$((BAD+1))
-            log "  UNREADABLE: $rel_f ($(cat /tmp/sdcr_dd_err | tail -1))"
-        fi
+        verify_one_file "$f"
     done < <(find "$dir" -type f -print0)
+done
+
+for rel in "${TARGET_FILES[@]}"; do
+    f="$MOUNTPOINT/$rel"
+    [ -f "$f" ] || continue
+    log "Verifying $rel (device settings file) ..."
+    verify_one_file "$f"
 done
 
 log "Verification complete: $GOOD readable, $BAD unreadable, $TOTAL total files."

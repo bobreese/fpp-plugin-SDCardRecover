@@ -209,6 +209,28 @@ drive actually reachable:
   `.../home/fpp/media` and strips that prefix from every listed path, so the
   output mirrors a normal FPP `media/` directory directly.
 
+## Config restore did nothing to the device's actual identity (real bug, real hardware)
+
+First full test: restored every category, including Config, from a card
+named `Pi3Test` onto a device named `GPIOTest`, rebooted, and the name never
+changed. Root cause: FPP's actual device identity - `HostName`, network
+config, output settings, everything `$settings[]` holds - lives in **one
+flat key=value file**, `/home/fpp/media/settings` (`www/config.php`:
+`$settingsFile = $mediaDirectory . "/settings"`), which is a **sibling** of
+`media/config/`, not inside it and not inside any other `TARGET_DIRS` entry.
+`sdcard_verify.sh` only ever walked directories, so this file was never
+captured, verified, or restored, no matter what categories were selected -
+"config" was restoring plugin/model JSON files under `config/`, but never
+touching the one file that actually holds the device's name.
+
+Fixed by adding a `TARGET_FILES` list (currently just this one file) to
+`sdcard_verify.sh`, read-tested the same way as everything else, and folding
+it into the `config` category in `sdcard_recover.sh` (it doesn't match the
+`^config/` path-prefix filter everything else uses, since it isn't under a
+`config/` subfolder at all, so it's bundled in explicitly). Also now backed
+up separately (`settings.before-recover-<timestamp>`), alongside the
+existing `config/` directory backup, before either is touched.
+
 ## Known gaps before this runs on real hardware
 
 This was written without access to a live FPP checkout or a Raspberry Pi to

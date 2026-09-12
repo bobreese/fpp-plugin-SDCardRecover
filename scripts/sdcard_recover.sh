@@ -72,6 +72,23 @@ case "$DEST_TYPE" in
         for c in "${CATS[@]}"; do
             grep -E "^${c}/" "$FILELIST" >> "$CAT_FILELIST" || true
         done
+
+        RESTORING_CONFIG=0
+        for c in "${CATS[@]}"; do
+            [ "$c" = "config" ] && RESTORING_CONFIG=1
+        done
+        # FPP's actual device identity (HostName, network config, everything
+        # $settings[] holds) lives in the flat /home/fpp/media/settings file,
+        # a sibling of media/config/, not a "config/..." path itself - so it
+        # never matches the category grep above. Bundled under the config
+        # category since that's conceptually what it is; without this,
+        # restoring "config" changes plugin/model JSON but leaves the
+        # device's actual name/network settings untouched, which is exactly
+        # what happened the first time this ran.
+        if [ "$RESTORING_CONFIG" -eq 1 ]; then
+            grep -x 'settings' "$FILELIST" >> "$CAT_FILELIST" || true
+        fi
+
         CAT_COUNT=$(wc -l < "$CAT_FILELIST")
         if [ "$CAT_COUNT" -eq 0 ]; then
             log "No recoverable files found in the selected categories (${CATS[*]})."
@@ -79,15 +96,18 @@ case "$DEST_TYPE" in
             exit 1
         fi
 
-        RESTORING_CONFIG=0
-        for c in "${CATS[@]}"; do
-            [ "$c" = "config" ] && RESTORING_CONFIG=1
-        done
-        if [ "$RESTORING_CONFIG" -eq 1 ] && [ -d /home/fpp/media/config ]; then
-            CONFIG_BACKUP="/home/fpp/media/config.before-recover-$(date +%Y%m%d-%H%M%S)"
+        if [ "$RESTORING_CONFIG" -eq 1 ]; then
             log "WARNING: config is being restored - this overwrites THIS device's own name, IP (if static), plugin settings, and other core configuration."
-            log "Backing up this device's CURRENT config to $CONFIG_BACKUP first, in case this wasn't intended."
-            cp -a /home/fpp/media/config "$CONFIG_BACKUP"
+            if [ -d /home/fpp/media/config ]; then
+                CONFIG_BACKUP="/home/fpp/media/config.before-recover-$(date +%Y%m%d-%H%M%S)"
+                log "Backing up this device's CURRENT config to $CONFIG_BACKUP first, in case this wasn't intended."
+                cp -a /home/fpp/media/config "$CONFIG_BACKUP"
+            fi
+            if [ -f /home/fpp/media/settings ]; then
+                SETTINGS_BACKUP="/home/fpp/media/settings.before-recover-$(date +%Y%m%d-%H%M%S)"
+                log "Backing up this device's CURRENT settings file to $SETTINGS_BACKUP first."
+                cp -a /home/fpp/media/settings "$SETTINGS_BACKUP"
+            fi
         fi
 
         log "Restoring $CAT_COUNT file(s) directly into /home/fpp/media/ (categories: ${CATS[*]})"
@@ -98,7 +118,9 @@ case "$DEST_TYPE" in
         if [ "$RC" -eq 0 ]; then
             log "Done. Restored into /home/fpp/media/ (categories: ${CATS[*]})"
             if [ "$RESTORING_CONFIG" -eq 1 ]; then
-                log "Config was overwritten - restart FPPD (or reboot) for the new settings to take effect. This device's previous config was saved to $CONFIG_BACKUP"
+                log "Config was overwritten - restart FPPD (or reboot) for the new settings (including HostName/network) to take effect."
+                [ -n "$CONFIG_BACKUP" ] && log "  Previous config saved to $CONFIG_BACKUP"
+                [ -n "$SETTINGS_BACKUP" ] && log "  Previous settings file saved to $SETTINGS_BACKUP"
             fi
         else
             log "FAILED (rsync exit $RC). /home/fpp/media/ may be partially updated."

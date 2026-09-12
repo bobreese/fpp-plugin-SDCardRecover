@@ -154,14 +154,18 @@
                         config is backed up automatically first, but once you restart FPPD (or
                         reboot), this device effectively becomes the damaged card's identity.
                         <div class="sdcr-rollback-info">
-                            <strong>To roll back:</strong> the backup is saved to
-                            <code>/home/fpp/media/config.before-recover-&lt;timestamp&gt;</code>
-                            (the exact path is also written to
-                            <code>media/logs/SDCardRecover.log</code>). To restore it: stop FPPD,
-                            delete or rename the current <code>/home/fpp/media/config</code>,
-                            copy that backup folder back to <code>/home/fpp/media/config</code>,
-                            then restart FPPD (or reboot). This isn't automated - do it over SSH
-                            or FPP's File Manager.
+                            <strong>To roll back:</strong> this backs up BOTH the
+                            <code>config/</code> directory (plugin/model settings) AND
+                            <code>/home/fpp/media/settings</code> (this device's actual
+                            HostName, network, and output settings - a separate flat file,
+                            not inside <code>config/</code>) to
+                            <code>config.before-recover-&lt;timestamp&gt;</code> and
+                            <code>settings.before-recover-&lt;timestamp&gt;</code> respectively
+                            (exact paths also written to
+                            <code>media/logs/SDCardRecover.log</code>). To restore: stop FPPD,
+                            swap each current file/folder back for its backup, then restart
+                            FPPD (or reboot). This isn't automated - do it over SSH or FPP's
+                            File Manager.
                         </div>
                         <label><input type="checkbox" id="sdcr-config-confirm"> I understand and want to proceed</label>
                     </div>
