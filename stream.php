@@ -1,18 +1,25 @@
 <?php
 /**
- * Streaming worker endpoint, modeled directly on FPP core's www/copystorage.php
- * (the "Copy Settings" / file-copy-backup page): disables output buffering and
- * shells a whitelisted script out via sudo so the browser's StreamURL() can
- * tail live progress exactly the way FPP's own backup/remote-sync pages do.
+ * Streaming worker. Confirmed against FPP's actual www/plugin.php: a plugin
+ * page is only ever reached via ?page=<file>&nopage=1, which include_once's
+ * this file into the SAME request plugin.php is already handling - it is
+ * never requested as a standalone URL. plugin.php has already required
+ * config.php by that point (both its wrapped and nopage branches do), but
+ * only the wrapped branch also pulls in common.php, so this still needs to
+ * require it explicitly here. Both are bare filenames, not paths relative to
+ * this file - PHP resolves them the same way plugin.php's own requires do,
+ * against FPP's www root, since that's the top-level script for this
+ * request. (An earlier version of this file used
+ * dirname(__FILE__) . '/../../common.php', which resolves outside the
+ * plugin entirely and would fatal.)
  *
- * NOTE FOR IMPLEMENTER: the exact require_once() path for common.php and the
- * precise signature of DisableOutputBuffering() should be copied verbatim from
- * a current checkout of FalconChristmas/fpp (www/copystorage.php) and
- * FalconChristmas/fpp-plugin-Template - this file reproduces the *pattern*
- * from research, not a byte-for-byte copy of core source.
+ * disables output buffering and shells a whitelisted script out via sudo so
+ * the browser's StreamURL() can tail live progress exactly the way FPP's own
+ * Copy Settings / Remote Backups pages do.
  */
 
-require_once dirname(__FILE__) . '/../../common.php';
+require_once "config.php";
+require_once "common.php";
 require_once dirname(__FILE__) . '/scripts_dispatch.php';
 
 DisableOutputBuffering();

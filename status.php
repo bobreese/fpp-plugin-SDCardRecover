@@ -3,9 +3,14 @@
  * Main SDCard Recover wizard page. Five steps, each with its own live log
  * panel streamed from stream.php the same way FPP's Copy Settings / Remote
  * Backups pages stream rsync output - see js/sdcard-recover.js.
+ *
+ * No manual <link>/<script> tags here: FPP's own plugin.php wrapper
+ * auto-scans this plugin's js/ and css/ directories and injects a tag for
+ * every file it finds there (see www/plugin.php ~line 144-172) - adding our
+ * own would either duplicate that or, worse, call a helper that doesn't
+ * exist (an earlier draft of this file called a fictional pluginBaseURL()).
  */
 ?>
-<link rel="stylesheet" type="text/css" href="<?php echo pluginBaseURL('SDCardRecover'); ?>/css/sdcard-recover.css">
 
 <div id="sdcr-root" class="sdcr-wizard">
 
@@ -141,5 +146,3 @@
     </div>
 
 </div>
-
-<script type="text/javascript" src="<?php echo pluginBaseURL('SDCardRecover'); ?>/js/sdcard-recover.js"></script>

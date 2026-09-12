@@ -93,29 +93,68 @@ real `pluginInfo.json`:
   compatibility claim), `versions` now honestly declares `10.0` - `0`
   (unbounded) only.
 
+## Page routing (confirmed against live FPP v10.x source, after real install failures)
+
+Getting this plugin to actually load surfaced three more schema/plumbing bugs,
+found by pulling FPP's real `www/plugin.php`, `www/menu.inc` conventions, and
+a working plugin (`fpp-LoRa`)'s source, rather than guessing:
+
+- **`menu.inc` is not just a data file.** FPP `include`s it directly and
+  expects it to `printf` the actual `<li><a>` HTML itself, using `$plugin`/
+  `$menu` variables FPP injects - the original scaffold only defined
+  `$menuEntries` with no rendering loop, and its `'page'` value was a whole
+  pre-built URL instead of the bare filename (`status.php`) FPP's own loop
+  turns into `plugin.php?plugin=<repo>&page=<page>`. The bare/pre-built
+  mismatch is exactly what produced *"Error with plugin, requesting a page
+  that doesn't exist: fpp-plugin-SDCardRecover/plugin.php?_menu=...&page=status.php"*
+  - `www/plugin.php` builds that exact `$pluginName/$pageName` error string
+    verbatim when `page=` doesn't resolve to a real file.
+- **There is no clean static URL for a plugin's own PHP files, and no
+  `pluginBaseURL()` helper** (both `status.php` and `js/sdcard-recover.js`
+  originally assumed one existed - it doesn't). Confirmed in `plugin.php`:
+  `file=...` always ends in `readfile()`, so a `.php` file requested that way
+  is served as its own source text, never executed. The only way to run a
+  plugin's PHP dynamically is `plugin.php?plugin=<repo>&page=<file>&nopage=1`,
+  which `include_once`s it into the same request - `stream.php`, `api.php`,
+  and the JS that calls them were rewritten around this.
+- **`js`/`css` assets need no manual `<link>`/`<script>` tags at all** -
+  `plugin.php` auto-scans the plugin's `js/` and `css/` directories and
+  injects a tag per file it finds, each pointing at
+  `plugin.php?plugin=<repo>&file=js/<name>&nopage=1`. `status.php`'s manual
+  tags (via the nonexistent `pluginBaseURL()`) were redundant on top of being
+  broken.
+- **`api.php`'s original `getEndpoints<Plugin>()` self-registration doesn't
+  apply here.** That's a real FPP convention, but for routes served by
+  fppd's own C++ backend and proxied through Apache's `/plugin-apis/<name>`
+  rule (confirmed via `fpp-LoRa`, which calls
+  `fetch('api/plugin-apis/LoRa')`) - a different mechanism requiring backend
+  registration this plugin doesn't have. `api.php` is now a plain
+  `?page=api.php&nopage=1&endpoint=...` dispatcher, consistent with how
+  `stream.php` actually works.
+- **`stream.php`'s `require_once` path was wrong.** It used
+  `dirname(__FILE__) . '/../../common.php'`, which resolves two directories
+  above the plugin - outside it entirely - and would fatal. Since this file
+  is only ever `include_once`'d by `plugin.php` (never requested directly),
+  the fix is the same bare `require_once "common.php";` `plugin.php` itself
+  uses, which PHP resolves against FPP's www root as the request's top-level
+  script.
+
 ## Known gaps before this runs on real hardware
 
 This was written without access to a live FPP checkout or a Raspberry Pi to
 test against, so before trusting it on an actual damaged card:
 
-1. **Verify FPP's real include/router conventions.** `stream.php` and
-   `api.php` reproduce the *pattern* researched from FPP core
-   (`DisableOutputBuffering()`, `StreamURL()`, the `getEndpoints<Plugin>()`
-   API-registration convention) but the exact `require_once` paths, function
-   signatures, and `pluginBaseURL()` helper name should be copied verbatim
-   from a current `FalconChristmas/fpp` and `FalconChristmas/fpp-plugin-Template`
-   checkout.
-2. **photorec's `/cmd` micro-syntax is finicky and version-dependent** - the
+1. **photorec's `/cmd` micro-syntax is finicky and version-dependent** - the
    exact extension-whitelist syntax in `sdcard_carve.sh` needs to be tested
    against the `testdisk` package version FPP actually ships, and may need
    `partition_order` / `search` flags adjusted.
-3. **`sdcard_evaluate.sh`'s target directory list** (`TARGET_DIRS` in
+2. **`sdcard_evaluate.sh`'s target directory list** (`TARGET_DIRS` in
    `sdcard_verify.sh`) assumes a standard FPP media layout; confirm against
    whatever FPP version/config the target systems run.
-4. **Sudo/permissions**: every script assumes it's invoked via `sudo` from the
+3. **Sudo/permissions**: every script assumes it's invoked via `sudo` from the
    web server user, matching FPP core's own pattern in `backups.php` - the
    plugin's sudoers entry (if FPP requires one per-plugin) isn't set up here.
-5. No automated tests - this needs to be exercised against a real second SD
+4. No automated tests - this needs to be exercised against a real second SD
    card (ideally one deliberately corrupted in a VM/loopback device first)
    before pointing it at an irreplaceable show's card.
 

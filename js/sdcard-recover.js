@@ -56,7 +56,7 @@
         Object.keys(args || {}).forEach(function (k) {
             qs += '&args[' + encodeURIComponent(k) + ']=' + encodeURIComponent(args[k]);
         });
-        var url = sdcrBaseURL() + '/stream.php?' + qs;
+        var url = sdcrPageUrl('stream.php', qs);
 
         var useCore = (typeof window.StreamURL === 'function');
         if (useCore) {
@@ -92,12 +92,21 @@
         xhr.send();
     }
 
-    function sdcrBaseURL() {
-        // Plugin pages are served under FPP's plugin router; this page's own
-        // script tag src already resolves relative to the plugin dir, so
-        // reuse that directory for stream.php/api.php calls too.
-        var script = document.currentScript || $all('script[src*="sdcard-recover.js"]')[0];
-        return script.src.replace(/\/js\/sdcard-recover\.js.*$/, '');
+    // Confirmed against FPP's actual www/plugin.php: there is no clean static
+    // URL for a plugin's own PHP files - file=... only ever readfile()s raw
+    // bytes (a .php file requested that way is served as its own source
+    // text, never executed). The only way to run a plugin's PHP dynamically
+    // is page=<file>&nopage=1, routed back through plugin.php itself. The
+    // repoName comes from this page's own URL (it's how we were loaded),
+    // not hardcoded, so this keeps working under whatever name the plugin
+    // is actually installed as.
+    function sdcrRepoName() {
+        return new URLSearchParams(window.location.search).get('plugin') || 'fpp-plugin-SDCardRecover';
+    }
+
+    function sdcrPageUrl(page, extraQs) {
+        var url = 'plugin.php?plugin=' + encodeURIComponent(sdcrRepoName()) + '&page=' + encodeURIComponent(page) + '&nopage=1';
+        return extraQs ? url + '&' + extraQs : url;
     }
 
     function renderDeviceList(lines) {
@@ -215,7 +224,7 @@
     }
 
     function runEvaluate() {
-        fetch(sdcrBaseURL() + '/api.php?endpoint=evaluate')
+        fetch(sdcrPageUrl('api.php', 'endpoint=evaluate'))
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 var el = $('#sdcr-evaluate-result');
@@ -253,8 +262,8 @@
                             var name = m[1].split('/').pop();
                             var link = $('#sdcr-download-link');
                             link.style.display = 'block';
-                            link.innerHTML = '<a class="btn btn-primary" href="' + sdcrBaseURL() +
-                                '/api.php?endpoint=download/' + encodeURIComponent(name) + '">Download ' + name + '</a>';
+                            var downloadUrl = sdcrPageUrl('api.php', 'endpoint=' + encodeURIComponent('download/' + name));
+                            link.innerHTML = '<a class="btn btn-primary" href="' + downloadUrl + '">Download ' + name + '</a>';
                         }
                     }
                     next(i + 1);
