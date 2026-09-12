@@ -382,5 +382,22 @@
             cb.addEventListener('change', updateRecoverButtonState);
         });
         $('#sdcr-config-confirm').addEventListener('change', updateRecoverButtonState);
+
+        // "(see warning)" next to Config was previously just inert text - a
+        // real link now, which checks Config (revealing the warning box,
+        // otherwise there's nothing to scroll to - it's display:none until
+        // then) and scrolls/flashes it so it's obvious that's what's meant.
+        $('#sdcr-config-warning-link').addEventListener('click', function () {
+            var configBox = $('.sdcr-local-cat[value="config"]');
+            if (!configBox.checked) {
+                configBox.checked = true;
+                updateRecoverButtonState();
+            }
+            var warning = $('#sdcr-config-warning');
+            warning.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            warning.classList.remove('sdcr-flash-highlight');
+            void warning.offsetWidth; // restart the animation if clicked again
+            warning.classList.add('sdcr-flash-highlight');
+        });
     });
 })();

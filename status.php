@@ -134,7 +134,7 @@
                 <div id="sdcr-local-categories" style="display:none; margin: 0.4em 0 0.8em 1.6em;">
                     <div class="sdcr-hint">Choose what to bring in - only the checked categories are touched, and only files already found readable in Step 2.</div>
                     <div class="sdcr-cat-grid">
-                        <label><input type="checkbox" class="sdcr-local-cat" value="config"> Config <span class="sdcr-warn">(see warning)</span></label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="config"> Config <a href="javascript:void(0)" id="sdcr-config-warning-link" class="sdcr-warn-link">(see warning)</a></label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="sequences"> Sequences</label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="music"> Music</label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="videos"> Videos</label>

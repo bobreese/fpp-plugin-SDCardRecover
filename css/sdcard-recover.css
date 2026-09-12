@@ -21,6 +21,16 @@
 .sdcr-hint { color: #555; font-size: 0.9em; }
 .sdcr-warn { color: #8a6d00; }
 .sdcr-danger { color: #a30000; font-weight: bold; }
+.sdcr-warn-link { color: #8a6d00; text-decoration: underline; cursor: pointer; }
+.sdcr-warn-link:hover { color: #a30000; }
+
+/* Briefly flashes when "(see warning)" is clicked, so it's obvious the
+   revealed box IS the warning being pointed at, not just newly appeared. */
+.sdcr-flash-highlight { animation: sdcr-flash 1.4s ease-out; }
+@keyframes sdcr-flash {
+    0% { background: #fff3cd; }
+    100% { background: transparent; }
+}
 
 .sdcr-log {
     background: #111; color: #ddd; font-family: monospace; font-size: 0.85em;
