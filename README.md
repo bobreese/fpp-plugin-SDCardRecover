@@ -37,6 +37,13 @@ without running any destructive repair unless the user explicitly asks for it.
   ("working..." animation) while a step streams, turning solid on completion,
   since there's no byte-accurate source to compute a true percentage from
   fsck/rsync/photorec output.
+- **If developing from Windows: watch the executable bit.** This repo's git
+  config has `core.filemode=false` (Windows/NTFS default), so a plain
+  `chmod +x` on a new script is silently ignored by git and it gets
+  committed as `100644` - it'll clone fine but `sudo`/exec on Linux fails
+  with "command not found". This bit every script the first time
+  (`sdcard_scan.sh` and friends all had to be fixed after the fact). Force it
+  explicitly per file instead: `git update-index --chmod=+x path/to/script.sh`.
 
 ## Layout
 
