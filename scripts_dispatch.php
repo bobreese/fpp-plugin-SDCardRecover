@@ -63,7 +63,14 @@ function sdcr_dispatch($cmd, $args) {
             if (!in_array($destType, ['local', 'usb', 'zip'], true)) {
                 throw new Exception('invalid destType');
             }
-            $destArg = isset($args['destArg']) ? $args['destArg'] : '';
+            if ($destType === 'usb') {
+                // destArg is a raw partition device now (e.g. /dev/sdb1) that
+                // sdcard_recover.sh mounts itself - validate it the same way
+                // every other device argument is validated.
+                $destArg = sdcr_require_device($args, 'destArg');
+            } else {
+                $destArg = isset($args['destArg']) ? $args['destArg'] : '';
+            }
             sdcr_passthru('sdcard_recover.sh', [escapeshellarg($destType), escapeshellarg($destArg)]);
             break;
 

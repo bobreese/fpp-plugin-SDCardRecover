@@ -131,8 +131,8 @@
         <div class="sdcr-step-body">
             <div class="sdcr-dest-options">
                 <label><input type="checkbox" name="sdcr-dest" value="local"> Local FPP storage (media/Recovered/)</label><br>
-                <label><input type="checkbox" name="sdcr-dest" value="usb"> A second attached USB drive
-                    <select id="sdcr-usb-target" disabled><option value="">Select a mounted USB drive...</option></select>
+                <label><input type="checkbox" name="sdcr-dest" value="usb"> A second attached USB drive (must already have a filesystem on it - this won't format one)
+                    <select id="sdcr-usb-target" disabled><option value="">Select a destination USB drive...</option></select>
                 </label><br>
                 <label><input type="checkbox" name="sdcr-dest" value="zip"> Zip file (download to your computer)</label>
             </div>

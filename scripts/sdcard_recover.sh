@@ -7,7 +7,7 @@
 source "$(dirname "$0")/common.sh"
 
 DEST_TYPE="$1"   # local | usb | zip
-DEST_ARG="$2"    # usb: target device partition mountpoint | zip: output path | local: (unused)
+DEST_ARG="$2"    # usb: target device PARTITION (e.g. /dev/sdb1) | zip/local: unused
 
 if [ -z "$DEST_TYPE" ]; then
     echo "ERROR: usage: sdcard_recover.sh <local|usb|zip> [dest-arg]" >&2
@@ -37,20 +37,56 @@ case "$DEST_TYPE" in
         log "Recovering $COUNT file(s) to local storage: $DEST"
         rsync -avh --progress --files-from="$FILELIST" "$SRC_ROOT/" "$DEST/"
         RC=$?
-        log "Done. Files available under $DEST"
+        if [ "$RC" -eq 0 ]; then
+            log "Done. Files available under $DEST"
+        else
+            log "FAILED (rsync exit $RC). Files under $DEST may be incomplete."
+        fi
         ;;
     usb)
-        if [ -z "$DEST_ARG" ] || [ ! -d "$DEST_ARG" ]; then
-            echo "ERROR: usb destination mountpoint '$DEST_ARG' is not a directory." >&2
+        # DEST_ARG is a raw partition device (e.g. /dev/sdb1), not a
+        # mountpoint: unlike a desktop, FPP has no automount daemon, so a
+        # freshly-inserted destination USB stick is never already mounted
+        # anywhere. We have to mount it ourselves, read-write, into its own
+        # dedicated mountpoint - separate from $MOUNTPOINT, which stays the
+        # read-only SOURCE card being recovered FROM.
+        DEST_PART=$(validate_device "$DEST_ARG")
+        guard_not_root_device "$DEST_PART"
+
+        if mountpoint -q "$MOUNTPOINT"; then
+            CURRENT_SRC=$(findmnt -n -o SOURCE "$MOUNTPOINT")
+            if [ "$CURRENT_SRC" = "$DEST_PART" ]; then
+                echo "ERROR: destination $DEST_PART is the same partition currently mounted as the source card at $MOUNTPOINT. Refusing to write into the read-only source." >&2
+                rm -f "$FILELIST"
+                exit 1
+            fi
+        fi
+
+        mkdir -p "$DEST_MOUNTPOINT"
+        if mountpoint -q "$DEST_MOUNTPOINT"; then
+            umount "$DEST_MOUNTPOINT" 2>/dev/null
+        fi
+        log "Mounting destination $DEST_PART read-write at $DEST_MOUNTPOINT..."
+        mount "$DEST_PART" "$DEST_MOUNTPOINT"
+        if ! mountpoint -q "$DEST_MOUNTPOINT"; then
+            echo "ERROR: failed to mount destination $DEST_PART (unformatted, or an unsupported filesystem?)" >&2
             rm -f "$FILELIST"
             exit 1
         fi
-        DEST="$DEST_ARG/SDCardRecover-$(date +%Y%m%d-%H%M%S)"
+
+        DEST="$DEST_MOUNTPOINT/SDCardRecover-$(date +%Y%m%d-%H%M%S)"
         mkdir -p "$DEST"
         log "Recovering $COUNT file(s) to USB drive: $DEST"
         rsync -avh --progress --files-from="$FILELIST" "$SRC_ROOT/" "$DEST/"
         RC=$?
-        log "Done. Files available under $DEST"
+
+        sync
+        umount "$DEST_MOUNTPOINT"
+        if [ "$RC" -eq 0 ]; then
+            log "Done. Files were written to $DEST_PART under SDCardRecover-*/ - drive safely unmounted, OK to remove."
+        else
+            log "FAILED (rsync exit $RC). Drive unmounted; files under $DEST_PART may be incomplete."
+        fi
         ;;
     zip)
         ensure_state_dir
@@ -59,8 +95,12 @@ case "$DEST_TYPE" in
         log "Packaging $COUNT file(s) into $ZIPNAME for download..."
         (cd "$SRC_ROOT" && zip -q "$ZIPPATH" -@ < "$FILELIST")
         RC=$?
-        log "Done. Zip ready: $ZIPPATH"
-        echo "ZIPPATH:$ZIPPATH"
+        if [ "$RC" -eq 0 ]; then
+            log "Done. Zip ready: $ZIPPATH"
+            echo "ZIPPATH:$ZIPPATH"
+        else
+            log "FAILED (zip exit $RC)."
+        fi
         ;;
     *)
         echo "ERROR: unknown destination type '$DEST_TYPE'" >&2

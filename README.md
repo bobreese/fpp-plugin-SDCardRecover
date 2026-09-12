@@ -146,6 +146,34 @@ a working plugin (`fpp-LoRa`)'s source, rather than guessing:
   uses, which PHP resolves against FPP's www root as the request's top-level
   script.
 
+## Recovering to a second USB drive (real bug found on real hardware)
+
+The first end-to-end test on real hardware (a genuinely damaged-adjacent FPP
+card, 39 real config/media files found and verified) copied files to
+`/mnt/DamagedSD` instead of the second USB stick, and rsync failed with exit
+11 (I/O error) - because `/mnt/DamagedSD` **is** the source card, mounted
+read-only. The destination dropdown had only ever listed partitions the scan
+found *already mounted*, which sounds reasonable until you notice FPP has no
+automount daemon: a freshly-inserted destination USB stick is never mounted
+by anything, so it never appeared as an option - the only thing that *was*
+already mounted was the source card itself (left over from mounting it a
+few minutes earlier), so it got offered back as if it were a valid
+destination.
+
+Fixed by actually owning the destination drive's mount lifecycle instead of
+assuming someone else already did it: `sdcard_recover.sh`'s `usb` case now
+takes a raw partition device (e.g. `/dev/sdb1`), mounts it read-write at its
+own dedicated `$DEST_MOUNTPOINT` (`/mnt/SDCardRecoverDest`, separate from the
+read-only `$MOUNTPOINT` the source stays mounted at), refuses outright if
+the chosen destination is the same partition currently mounted as the
+source, copies, and unmounts afterward so the drive is safe to remove. The
+destination `<select>` (`js/sdcard-recover.js`) now lists partitions
+belonging to *other* disks from the scan, not whichever partition scan
+happened to see mounted. All three destination branches also now check the
+actual exit code of rsync/zip before logging success - the original blindly
+logged "Done" regardless, which would have hidden a real failure the next
+time one happened for an unrelated reason.
+
 ## Known gaps before this runs on real hardware
 
 This was written without access to a live FPP checkout or a Raspberry Pi to

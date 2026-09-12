@@ -4,6 +4,7 @@
 # (DriveMountHelper) so this plugin never operates on an unexpected block device.
 
 MOUNTPOINT="/mnt/DamagedSD"
+DEST_MOUNTPOINT="/mnt/SDCardRecoverDest"
 STATE_DIR="/home/fpp/media/config/plugin.SDCardRecover"
 MANIFEST="$STATE_DIR/manifest.tsv"
 LOCKFILE="/tmp/sdcard-recover.lock"

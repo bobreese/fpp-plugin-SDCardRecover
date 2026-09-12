@@ -130,25 +130,32 @@
             list.appendChild(row);
         });
 
-        // Populate the USB-destination <select> in step 5 from the same scan,
-        // excluding whatever device the user ends up selecting as the source.
-        var usbSelect = $('#sdcr-usb-target');
-        usbSelect.innerHTML = '<option value="">Select a mounted USB drive...</option>';
-        sdcr.usbDevices.forEach(function (p) {
-            if (p.mounted) {
-                var opt = document.createElement('option');
-                opt.value = p.mounted;
-                opt.textContent = p.device + ' (' + p.mounted + ')';
-                usbSelect.appendChild(opt);
-            }
-        });
-
         $all('input[name="sdcr-device"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
                 sdcr.device = radio.value;
                 enableStep($('#sdcr-step-mount'));
                 $('#sdcr-btn-mount').disabled = false;
+                populateUsbDestinations();
             });
+        });
+    }
+
+    // Lists partitions belonging to disks OTHER than the chosen source card,
+    // as raw device paths (e.g. /dev/sdb1) - NOT by which ones scan happened
+    // to see already mounted. FPP has no automount daemon, so a freshly
+    // inserted destination USB stick is normally unmounted, and
+    // sdcard_recover.sh now mounts it itself; a `.mounted`-only list
+    // previously found nothing for a real second drive but could offer back
+    // the source card's own (read-only) mount as if it were a destination.
+    function populateUsbDestinations() {
+        var usbSelect = $('#sdcr-usb-target');
+        usbSelect.innerHTML = '<option value="">Select a destination USB drive...</option>';
+        sdcr.usbDevices.forEach(function (p) {
+            if (p.parent === sdcr.device) return; // never offer the source card itself
+            var opt = document.createElement('option');
+            opt.value = p.device;
+            opt.textContent = p.device + (p.fstype ? ' (' + p.fstype + ')' : '') + ' - ' + humanSize(p.size);
+            usbSelect.appendChild(opt);
         });
     }
 
