@@ -19,9 +19,17 @@ if [ ! -f "$MANIFEST" ]; then
     exit 1
 fi
 
-SRC_ROOT="$MOUNTPOINT"
+# Manifest paths are like "home/fpp/media/config/..." (needed by
+# sdcard_verify.sh to locate files on the mounted ROOT filesystem - see its
+# own comment on TARGET_DIRS). Copying that structure verbatim means digging
+# through SDCardRecover-<ts>/home/fpp/media/config/ to find anything, instead
+# of a folder that mirrors what a normal FPP media/ directory actually looks
+# like. Re-root the copy at .../home/fpp/media and strip that prefix from
+# every listed path, so recovered output lands as SDCardRecover-<ts>/config/,
+# .../sequences/, etc. directly.
+SRC_ROOT="$MOUNTPOINT/home/fpp/media"
 FILELIST=$(mktemp)
-awk -F'\t' '$3=="OK"{print $1}' "$MANIFEST" > "$FILELIST"
+awk -F'\t' '$3=="OK"{print $1}' "$MANIFEST" | sed 's#^home/fpp/media/##' > "$FILELIST"
 COUNT=$(wc -l < "$FILELIST")
 
 if [ "$COUNT" -eq 0 ]; then

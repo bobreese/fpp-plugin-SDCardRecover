@@ -190,6 +190,14 @@ drive actually reachable:
   going to be able to set, not over the file data. `sdcard_recover.sh` now
   checks the destination's fstype and drops those flags (`-rth` instead of
   `-avh`) for vfat/exfat/ntfs targets.
+- **Recovered files landed nested as `SDCardRecover-<ts>/home/fpp/media/config/...`**
+  instead of `SDCardRecover-<ts>/config/...` - technically correct (the
+  files were genuinely there) but clunky, since `sdcard_verify.sh`'s
+  manifest paths are `home/fpp/media/...` (needed to locate files on the
+  mounted root filesystem) and that full path was being preserved verbatim
+  into the recovered folder. `sdcard_recover.sh` now re-roots the copy at
+  `.../home/fpp/media` and strips that prefix from every listed path, so the
+  output mirrors a normal FPP `media/` directory directly.
 
 ## Known gaps before this runs on real hardware
 
