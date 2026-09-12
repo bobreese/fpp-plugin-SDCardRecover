@@ -8,6 +8,14 @@ STATE_DIR="/home/fpp/media/config/plugin.SDCardRecover"
 MANIFEST="$STATE_DIR/manifest.tsv"
 LOCKFILE="/tmp/sdcard-recover.lock"
 
+# FPP's own log directory (www/config.php: $logDirectory = $mediaDirectory . "/logs",
+# exposed to child processes as $LOGDIR). Falls back to the standard default since
+# sudo may not preserve LOGDIR across the privilege boundary. Writing here - named
+# after the plugin - is all that's needed for the file to show up under FPP's own
+# File Manager -> Logs tab; that tab just lists whatever is in this directory.
+LOG_DIR="${LOGDIR:-/home/fpp/media/logs}"
+LOG_FILE="$LOG_DIR/SDCardRecover.log"
+
 # FPP's known removable-device naming: sdX, mmcblkXpY, nvmeXnYpZ.
 # Whole-disk form (no trailing partition number) is also accepted for scan/fsck steps.
 DEVICE_RE='^(sd[a-z][0-9]*|mmcblk[0-9]+p?[0-9]*|nvme[0-9]+n[0-9]+p?[0-9]*)$'
@@ -47,6 +55,22 @@ ensure_state_dir() {
     mkdir -p "$STATE_DIR"
 }
 
-log() {
-    echo "[$(date '+%H:%M:%S')] $*"
+ensure_log_file() {
+    mkdir -p "$LOG_DIR"
+    touch "$LOG_FILE"
+    # Scripts run as root via sudo; the FPP web UI (fpp user) still needs to
+    # be able to view/delete this from the File Manager Logs tab.
+    chown fpp:fpp "$LOG_FILE" 2>/dev/null || true
 }
+
+log() {
+    local line
+    line="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    echo "$line"
+    echo "$line" >> "$LOG_FILE"
+}
+
+ensure_log_file
+SDCR_SCRIPT_NAME=$(basename "$0")
+log "=== $SDCR_SCRIPT_NAME started: $* ==="
+trap 'log "=== $SDCR_SCRIPT_NAME finished (exit $?) ==="' EXIT

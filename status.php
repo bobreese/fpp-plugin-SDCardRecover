@@ -13,6 +13,8 @@
         <strong>SD Card Recover</strong> reads a second, possibly-damaged FPP SD card
         over USB and tries to pull your config and media off it - without running any
         destructive repair unless you explicitly ask for it.
+        Everything below is also written to <code>media/logs/SDCardRecover.log</code>,
+        viewable/downloadable from FPP's own File Manager &rarr; Logs tab.
     </div>
 
     <!-- Step 1: Scan -->

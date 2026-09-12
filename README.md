@@ -23,6 +23,12 @@ without running any destructive repair unless the user explicitly asks for it.
   second attached USB drive, or a zip built for browser download - all three,
   user's choice, matching FPP's existing Copy Settings (USB) and JSON config
   backup (download) patterns.
+- **Persistent logging.** Every step is appended to `media/logs/SDCardRecover.log`
+  (FPP's own log directory - `www/config.php`'s `$logDirectory`, exposed to
+  child processes as `$LOGDIR`), so it shows up automatically in FPP's File
+  Manager -> Logs tab (that tab just lists whatever's in that directory) - not
+  only in the live browser stream. Handled centrally in `scripts/common.sh`'s
+  `log()`, plus a start/finish trap per script for traceability.
 - **Progress UI** reuses FPP's actual streaming mechanism (`StreamURL()` in
   `www/js/fpp.js` - a long-poll `xhr.onprogress` diff, not WebSocket/SSE) the
   same way Copy Settings and the Remote Backups page do. Note: FPP's real
