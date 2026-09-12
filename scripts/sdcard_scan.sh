@@ -17,7 +17,12 @@ function walk($devices, $rootDev) {
         $path = "/dev/" . $d["name"];
         $isRemovable = (isset($d["rm"]) && $d["rm"]) || (isset($d["tran"]) && $d["tran"] === "usb");
         $isRoot = (strpos($rootDev, $d["name"]) !== false);
-        if ($d["type"] === "disk" && $isRemovable && !$isRoot) {
+        // Multi-slot USB card readers (SD/microSD/CF/MS in one unit) enumerate
+        // one SCSI disk per slot even when empty, reporting size 0 - not a
+        // real candidate, so skip listing them at all rather than showing
+        // the user three unusable "0.0 B" entries alongside the real card.
+        $hasMedia = isset($d["size"]) && $d["size"] > 0;
+        if ($d["type"] === "disk" && $isRemovable && !$isRoot && $hasMedia) {
             echo json_encode([
                 "device"  => $path,
                 "size"    => $d["size"],

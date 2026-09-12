@@ -242,6 +242,14 @@
                 if (!data.fitsLocally) {
                     $('input[name="sdcr-dest"][value="local"]').disabled = true;
                 }
+            })
+            .catch(function (err) {
+                // A silently-rejected promise here (e.g. the backend
+                // returning something r.json() can't parse) is exactly what
+                // made "Evaluate does nothing" invisible the first time -
+                // surface it instead of swallowing it.
+                $('#sdcr-evaluate-result').innerHTML =
+                    '<span class="sdcr-danger">Evaluate failed: ' + (err && err.message ? err.message : err) + '</span>';
             });
     }
 

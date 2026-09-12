@@ -21,12 +21,15 @@ log "Recoverable data found: $RECOVERABLE_FILES file(s), $RECOVERABLE_BYTES byte
 log "Unreadable (skipped): $UNREADABLE_FILES file(s)"
 log "Free space on this FPP's local storage ($LOCAL_MEDIA): $LOCAL_FREE_BYTES bytes"
 
+# Prefixed marker line, not just "the last line of output": common.sh's own
+# EXIT trap logs "=== ... finished ===" *after* this, which would otherwise
+# be mistaken for the payload by anything doing end($out)-style parsing.
 php -r '
 $recoverableBytes = (int)$argv[1];
 $recoverableFiles = (int)$argv[2];
 $unreadableFiles  = (int)$argv[3];
 $localFree        = (int)$argv[4];
-echo json_encode([
+echo "EVALJSON:" . json_encode([
     "recoverableBytes" => $recoverableBytes,
     "recoverableFiles" => $recoverableFiles,
     "unreadableFiles"  => $unreadableFiles,

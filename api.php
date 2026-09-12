@@ -39,9 +39,19 @@ switch (true) {
 function sdcr_api_evaluate() {
     $out = [];
     exec('sudo ' . escapeshellarg(dirname(__FILE__) . '/scripts/sdcard_evaluate.sh') . ' 2>&1', $out, $rc);
-    $json = end($out);
     header('Content-Type: application/json');
-    echo $json !== false ? $json : json_encode(['error' => 'evaluate failed', 'rc' => $rc]);
+    // Not end($out): common.sh's own EXIT trap logs a "=== ... finished ==="
+    // line AFTER the script body's own output, so the actual last line is
+    // that trap message, not the JSON - end($out) silently fed the browser
+    // an unparseable non-JSON string here, which is why Evaluate did nothing
+    // (the fetch's .json() rejected with no .catch() to report it).
+    foreach (array_reverse($out) as $line) {
+        if (strpos($line, 'EVALJSON:') === 0) {
+            echo substr($line, strlen('EVALJSON:'));
+            return;
+        }
+    }
+    echo json_encode(['error' => 'evaluate failed', 'rc' => $rc, 'output' => $out]);
 }
 
 function sdcr_api_download($zipname) {
