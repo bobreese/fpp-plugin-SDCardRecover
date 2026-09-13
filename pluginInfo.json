@@ -19,7 +19,7 @@
     ],
     "dependencies": {
         "plugins": [],
-        "packages": ["e2fsprogs", "dosfstools", "testdisk", "zip", "rsync"],
+        "packages": ["testdisk", "zip", "rsync"],
         "python": [],
         "scripts": []
     }
