@@ -93,7 +93,7 @@ scripts/
                          included); usb/zip always copy everything verified
   sdcard_unmount.sh      Cleanup
   fpp_install.sh         Plugin Manager install hook: apt-get installs
-                         e2fsprogs/dosfstools/exfat-fsck by hand, untracked
+                         e2fsprogs/dosfstools/exfatprogs by hand, untracked
                          (see below for why), creates the plugin's own
                          config/plugin.SDCardRecover state dir
   fpp_uninstall.sh       Plugin Manager uninstall hook: unmounts both
@@ -380,14 +380,24 @@ it properly meant going around FPP's own UI, not through it:
   boot/kernel-update package - down as a side effect; it had to be manually
   reinstalled. It also tried to remove `e2fsprogs`, and only failed because
   apt refused without `--allow-remove-essential` (`e2fsprogs` is
-  Debian-essential). Fixed by moving `e2fsprogs`/`dosfstools`/`exfat-fsck`
-  out of `dependencies.packages` entirely and into a plain, untracked
-  `apt-get install` inside `fpp_install.sh` that only ever ensures they
-  exist - they're base-system filesystem tools present on virtually every
-  FPP image already, not something this plugin should claim ownership of
-  for removal purposes. `testdisk`/`zip`/`rsync` stayed in
-  `dependencies.packages`, since those genuinely are this plugin's own
-  dependencies and safe to reference-count.
+  Debian-essential). Fixed by moving `e2fsprogs`/`dosfstools` out of
+  `dependencies.packages` entirely, grouping them with `exfatprogs` (see
+  below) in a plain, untracked `apt-get install` inside `fpp_install.sh`
+  that only ever ensures they exist - they're base-system filesystem tools
+  present on virtually every FPP image already, not something this plugin
+  should claim ownership of for removal purposes. `testdisk`/`zip`/`rsync`
+  stayed in `dependencies.packages`, since those genuinely are this
+  plugin's own dependencies and safe to reference-count.
+- **`exfat-fsck` was never a real Debian package** - `fpp_install.sh` had
+  installed it by that name since the original scaffold, unverified, and it
+  went uncaught until the first real install exercised after the fix above
+  (previously `e2fsprogs`/`dosfstools`/`testdisk`/`zip`/`rsync` were *also*
+  covered by the tracked `dependencies.packages` path, so `fpp_install.sh`'s
+  own install line silently failing on the bogus name - `set -e` aborts the
+  whole script the moment `apt-get install` can't resolve any one name in
+  the list - went unnoticed). Confirmed via `packages.debian.org`
+  ("No such package"); the real package providing `fsck.exfat`/`mkfs.exfat`
+  on Debian 11+ is `exfatprogs`. Fixed in `fpp_install.sh`.
 - **Fixed: uninstall used to delete any recovery zip that was generated but
   never downloaded, with no warning** (confirmed happening on real
   hardware). There's no fix through FPP's own Uninstall confirmation
