@@ -388,11 +388,17 @@ it properly meant going around FPP's own UI, not through it:
   for removal purposes. `testdisk`/`zip`/`rsync` stayed in
   `dependencies.packages`, since those genuinely are this plugin's own
   dependencies and safe to reference-count.
-- **Open question, not a bug**: uninstall also deletes any recovery zip
-  sitting in the plugin's state dir that was generated but never downloaded,
-  with no warning. Confirmed happening on real hardware; not yet decided
-  whether uninstall should warn/refuse when one is present, or whether
-  silent cleanup is fine as-is.
+- **Fixed: uninstall used to delete any recovery zip that was generated but
+  never downloaded, with no warning** (confirmed happening on real
+  hardware). There's no fix through FPP's own Uninstall confirmation
+  dialog - it's a generic modal built entirely in `www/plugins.php` with no
+  per-plugin hook, and `fpp_uninstall.sh` itself runs non-interactively via
+  `sudo` with nothing to prompt on, so a plugin genuinely cannot ask
+  "download it first?" at that point. Instead, `fpp_uninstall.sh` now moves
+  any undownloaded zip to `/home/fpp/media/upload/` rather than deleting
+  it - FPP's File Manager already lists and can download anything in its
+  Uploads tab (confirmed in `www/filemanager.php`), so the file survives
+  uninstall and stays reachable from the UI without SSH.
 
 ## Validated on real hardware
 
