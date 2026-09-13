@@ -29,6 +29,7 @@ without running any destructive repair unless you explicitly ask for it.
 - [How This Plugin Works](docs/how-it-works.md) - pluginInfo.json schema and FPP page routing, confirmed against live FPP source
 - [Directory Layout](docs/directory-layout.md)
 - [Installing This Plugin](docs/installing.md) - manual install, since it isn't in FPP's Plugin Manager search yet
+- [Privacy Declaration](docs/privacy.md) - what's declared in pluginInfo.json's privacy block, and why
 - [Testing & Real-Hardware Findings](docs/testing.md) - every real bug found on real hardware, what's validated, and what still isn't
 
 ## License
