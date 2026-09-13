@@ -49,9 +49,13 @@
             {
                 "kind": "download",
                 "what": "Installs e2fsprogs, dosfstools, exfatprogs, and rsync via apt-get if not already present."
+            },
+            {
+                "kind": "core-settings",
+                "what": "On uninstall, moves any not-yet-downloaded recovery zip to media/upload/ instead of deleting it."
             }
         ],
         "closedCode": false,
-        "other": "This device's settings file, if you restore it here, can include its saved WiFi password and other locally-stored secrets - treat an exported zip or USB drive that includes Config as sensitive."
+        "other": "This device's settings file, if you restore it here, can include its saved WiFi password and other locally-stored secrets - treat an exported zip or USB drive that includes Config as sensitive. Restoring Config from a different physical device will also make FPP's own Initial Setup wizard (Location/Device/Privacy/Security) run again once, since FPP ties privacy consent to hardware identity, not to the settings file - that's FPP's own protection, not something this plugin controls."
     }
 }
