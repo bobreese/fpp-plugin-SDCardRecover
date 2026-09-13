@@ -171,6 +171,16 @@
                             FPPD (or reboot). This isn't automated - do it over SSH or FPP's
                             File Manager.
                         </div>
+                        <div class="sdcr-rollback-info">
+                            <strong>You may see FPP's Initial Setup wizard again after rebooting.</strong>
+                            FPP ties its privacy-consent record to this device's own hardware, not
+                            to the settings file - restoring Config from a different device means
+                            that record no longer matches, so FPP correctly asks you to answer the
+                            Location/Device/Privacy/Security steps again rather than silently
+                            keeping someone else's consent. This is expected, not a sign anything
+                            went wrong - your Name, network, and other settings will already be in
+                            place.
+                        </div>
                         <label><input type="checkbox" id="sdcr-config-confirm"> I understand and want to proceed</label>
                     </div>
                 </div>

@@ -433,6 +433,38 @@ it properly meant going around FPP's own UI, not through it:
   line, matching the equivalent entry already present in
   `fpp-plugin-RemoteBackup`'s own privacy block.
 
+## Initial Setup reappears after a cross-device Config restore (expected, not a bug)
+
+Restoring Config from `Pi3Test` onto `GPIOTest`, then rebooting, correctly
+changed `GPIOTest`'s own identity - its FPP header showed `Pi3Test`
+afterward, confirming the `settings`/`timezone` fix actually works end to
+end. But FPP's Initial Setup wizard (Location/Device/Privacy/Security) came
+back too, which looked wrong at first: this device had already been through
+setup once.
+
+Traced through FPP's real `www/privacyConsent.inc` and `www/common.php`
+rather than guessed at: FPP stamps its privacy-consent record (the
+statistics/crash-data/vendor-logo choices from the wizard's Privacy step)
+with `getSystemUUID()` - a value derived live from *hardware* each boot
+(CPU serial / device-tree / board EEPROM, see `scripts/get_uuid`), never
+stored in a file a backup could carry over. The source is explicit about
+why:
+
+> Binds the record to the device it was given on. Without this a settings
+> backup restored onto a second player carries the first player's consent,
+> and its owner is never asked anything.
+
+So on reboot, `PrivacyConsentShortfall()` compared the restored record's
+UUID (`Pi3Test`'s) against `GPIOTest`'s own real hardware UUID, found a
+mismatch, and correctly classified it `'other-device'` - by design, not a
+malfunction. FPP is refusing to let a restored backup silently inherit
+another physical device's privacy consent. **Expect Initial Setup to
+reappear once after restoring Config from a different physical device** -
+everything else (name, network, other settings) will already be in place;
+only the privacy consent step is being genuinely re-asked. Added a note to
+this effect in the in-app Config warning (`status.php`) so it isn't a
+surprise.
+
 ## Validated on real hardware
 
 Real second FPP SD card (`Pi3Test`), read over USB by a second FPP device
@@ -453,17 +485,16 @@ were safely reversible. Confirmed working end-to-end:
   plugin's own state dir removed, the plugin directory itself removed, and
   `raspi-firmware`/`dosfstools`/`rsync` confirmed reinstalled cleanly
   afterward
+- **Config restore actually changing this device's identity on reboot.**
+  Restored Config onto `GPIOTest` from `Pi3Test` and rebooted: `GPIOTest`'s
+  own FPP header correctly showed `Pi3Test` afterward, confirming the
+  `settings`/`timezone` fix works end to end (see the section above for the
+  one real surprise this surfaced - FPP's Initial Setup wizard reappearing,
+  which turned out to be expected FPP behavior, not a bug in this plugin)
 
 **Not yet validated:**
 
-1. **Config restore actually changing this device's identity on reboot.**
-   The original test (restore Config onto `GPIOTest` from `Pi3Test`, reboot,
-   check the hostname) is what surfaced the `settings`/`timezone` gap in the
-   first place - the code was fixed, but testing then moved on to the File
-   Copy Backup cross-check and the corruption/fsck work below rather than
-   circling back to redo that exact reboot test with the fix in place. Fixed
-   in code and reasoned through, not yet reconfirmed against a real reboot.
-2. **The "some files unreadable" path, with a genuine I/O error** (as
+1. **The "some files unreadable" path, with a genuine I/O error** (as
    opposed to silent data corruption). Confirmed during testing: writing
    `/dev/urandom` over live SD card sectors changes their *content* but
    doesn't produce a real read failure - flash storage just returns
@@ -474,12 +505,12 @@ were safely reversible. Confirmed working end-to-end:
    detect. Testing this path properly needs a `dm-flakey`/loopback virtual
    device configured to actually return I/O errors for chosen byte ranges,
    which real SD hardware can't be made to do on demand.
-3. **photorec's `/cmd` micro-syntax is finicky and version-dependent** - the
+2. **photorec's `/cmd` micro-syntax is finicky and version-dependent** - the
    exact extension-whitelist syntax in `sdcard_carve.sh` needs to be tested
    against the `testdisk` package version FPP actually ships, and may need
    `partition_order` / `search` flags adjusted. The deep-scan/carving path
    has not been exercised at all yet.
-4. **Sudo/permissions**: every script assumes it's invoked via `sudo` from the
+3. **Sudo/permissions**: every script assumes it's invoked via `sudo` from the
    web server user, matching FPP core's own pattern in `backups.php` - the
    plugin's sudoers entry (if FPP requires one per-plugin) isn't set up here.
    (Real testing so far hasn't hit a permissions problem, but that's not the
