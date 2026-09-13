@@ -62,7 +62,7 @@ without running any destructive repair unless the user explicitly asks for it.
 ## Layout
 
 ```
-pluginInfo.json         Plugin manifest (name, tracked deps: testdisk/zip/rsync, privacy block)
+pluginInfo.json         Plugin manifest (name, tracked deps: testdisk/zip, privacy block)
 menu.inc                Registers the "SD Card Recover" status-page menu entry
 status.php              Main 5-step wizard page
 stream.php              Streaming worker (pattern copied from FPP's copystorage.php)
@@ -93,9 +93,9 @@ scripts/
                          included); usb/zip always copy everything verified
   sdcard_unmount.sh      Cleanup
   fpp_install.sh         Plugin Manager install hook: apt-get installs
-                         e2fsprogs/dosfstools/exfatprogs by hand, untracked
-                         (see below for why), creates the plugin's own
-                         config/plugin.SDCardRecover state dir
+                         e2fsprogs/dosfstools/exfatprogs/rsync by hand,
+                         untracked (see below for why), creates the
+                         plugin's own config/plugin.SDCardRecover state dir
   fpp_uninstall.sh       Plugin Manager uninstall hook: unmounts both
                          /mnt/DamagedSD and /mnt/SDCardRecoverDest if still
                          mounted, clears the plugin's own state dir (manifest
@@ -385,9 +385,9 @@ it properly meant going around FPP's own UI, not through it:
   below) in a plain, untracked `apt-get install` inside `fpp_install.sh`
   that only ever ensures they exist - they're base-system filesystem tools
   present on virtually every FPP image already, not something this plugin
-  should claim ownership of for removal purposes. `testdisk`/`zip`/`rsync`
-  stayed in `dependencies.packages`, since those genuinely are this
-  plugin's own dependencies and safe to reference-count.
+  should claim ownership of for removal purposes. `testdisk`/`zip` stayed
+  in `dependencies.packages` at the time - `rsync` did too, on the theory
+  that it was genuinely this plugin's own dependency. It wasn't; see below.
 - **`exfat-fsck` was never a real Debian package** - `fpp_install.sh` had
   installed it by that name since the original scaffold, unverified, and it
   went uncaught until the first real install exercised after the fix above
@@ -409,6 +409,29 @@ it properly meant going around FPP's own UI, not through it:
   it - FPP's File Manager already lists and can download anything in its
   Uploads tab (confirmed in `www/filemanager.php`), so the file survives
   uninstall and stays reachable from the UI without SSH.
+- **`rsync` staying in `dependencies.packages` broke a different plugin on
+  a different device.** After a routine uninstall of this plugin on
+  `GPIOTest`, the separate `fpp-plugin-RemoteBackup` plugin - running on
+  another FPP device entirely (`Pi5Backup`) - started failing to back up
+  `GPIOTest` specifically, with `rsync: command not found` /
+  `rsync error: error in rsync protocol data stream (code 12)`. `rsync`
+  runs on both ends of an SSH pull; that's the signature of the *remote*
+  side missing the binary, not the initiating one. `GPIOTest` was the only
+  remote in Remote Backup's status table showing that error - everything
+  else backed up and verified fine. Checking `fpp-plugin-RemoteBackup`'s
+  own `pluginInfo.json` confirmed it installs `rsync` itself, untracked,
+  outside `dependencies.packages` - exactly the pattern this plugin had
+  just adopted for `e2fsprogs`/`dosfstools`/`exfatprogs` - so it was never
+  a registered claimant of `rsync` in FPP's reference count. This plugin
+  was the *only* tracked claimant on that box, and its own uninstall
+  correctly-per-FPP's-logic, but wrongly in reality, took `rsync` down with
+  it - the same `raspi-firmware` lesson, this time causing an actual break
+  in a second, unrelated plugin instead of a near-miss. `rsync` moved out
+  of `dependencies.packages` and into the untracked `apt-get install` line
+  alongside the other three. Also added the `systemChanges` entry
+  (`kind: download`) this plugin was missing for that untracked install
+  line, matching the equivalent entry already present in
+  `fpp-plugin-RemoteBackup`'s own privacy block.
 
 ## Validated on real hardware
 

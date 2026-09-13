@@ -19,7 +19,7 @@
     ],
     "dependencies": {
         "plugins": [],
-        "packages": ["testdisk", "zip", "rsync"],
+        "packages": ["testdisk", "zip"],
         "python": [],
         "scripts": []
     },
@@ -45,6 +45,10 @@
             {
                 "kind": "core-settings",
                 "what": "If Config is included, overwrites this device's own name, network settings, and configuration with the second card's."
+            },
+            {
+                "kind": "download",
+                "what": "Installs e2fsprogs, dosfstools, exfatprogs, and rsync via apt-get if not already present."
             }
         ],
         "closedCode": false,
