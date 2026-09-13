@@ -62,7 +62,7 @@ without running any destructive repair unless the user explicitly asks for it.
 ## Layout
 
 ```
-pluginInfo.json         Plugin manifest (name, deps: e2fsprogs, dosfstools, testdisk, zip, rsync)
+pluginInfo.json         Plugin manifest (name, tracked deps: testdisk/zip/rsync, privacy block)
 menu.inc                Registers the "SD Card Recover" status-page menu entry
 status.php              Main 5-step wizard page
 stream.php              Streaming worker (pattern copied from FPP's copystorage.php)
@@ -92,8 +92,16 @@ scripts/
                          config/settings/timezone backups first if Config is
                          included); usb/zip always copy everything verified
   sdcard_unmount.sh      Cleanup
-  fpp_install.sh         Plugin Manager install hook (apt deps, dirs)
-  fpp_uninstall.sh       Plugin Manager uninstall hook (leaves recovered data in place)
+  fpp_install.sh         Plugin Manager install hook: apt-get installs
+                         e2fsprogs/dosfstools/exfat-fsck by hand, untracked
+                         (see below for why), creates the plugin's own
+                         config/plugin.SDCardRecover state dir
+  fpp_uninstall.sh       Plugin Manager uninstall hook: unmounts both
+                         /mnt/DamagedSD and /mnt/SDCardRecoverDest if still
+                         mounted, clears the plugin's own state dir (manifest
+                         + any zip not yet downloaded) - never touches files
+                         already restored into real media/<category>/
+                         directories, a USB drive, or a downloaded zip
 ```
 
 ## pluginInfo.json schema (confirmed against live FPP v10.x source)
@@ -342,6 +350,50 @@ repair *unconditionally*, regardless of the repair's own exit code - had it
 treated a nonzero repair exit as "give up," this successful recovery would
 have been missed.
 
+## Uninstalling didn't clean up everything, and once nearly took the Pi's bootloader with it (real bug, real hardware)
+
+Uninstall had never actually been exercised before this pass - and testing
+it properly meant going around FPP's own UI, not through it:
+
+- **FPP discards `fpp_uninstall.sh`'s exit code entirely.** Confirmed by
+  pulling FPP core's real `scripts/uninstall_plugin`: it runs the plugin's
+  uninstall hook, then unconditionally deletes the plugin's whole directory
+  regardless of what that hook returned. The Plugin Manager reports
+  "uninstalled" successfully no matter what our script actually did - the
+  only way to know uninstall really worked is checking device state
+  directly (mountpoints, leftover directories), never the UI's own message.
+- **It only unmounted `/mnt/DamagedSD`, never `/mnt/SDCardRecoverDest`** -
+  a destination USB mount left over from an interrupted recovery wasn't
+  being cleaned up at all. Fixed to unmount both.
+- **The "leaves recovered data in `media/Recovered` in place" message was
+  simply false** - that staging folder hasn't been used since recovery
+  started writing straight into real `media/<category>/` directories, a USB
+  drive, or a zip (see the USB-recovery bug section above). Removed the
+  message, and the now-pointless `mkdir` for that folder from
+  `fpp_install.sh`.
+- **The real find: FPP reference-counts `dependencies.packages` and removes
+  them on uninstall if nothing else claims them - and that took
+  `raspi-firmware` down with it.** A real uninstall on `GPIOTest` triggered
+  `apt-get remove` for every package `pluginInfo.json` declared as a
+  dependency at the time (`e2fsprogs`, `dosfstools`, `testdisk`, `zip`,
+  `rsync`). Removing `dosfstools` pulled `raspi-firmware` - the Pi's own
+  boot/kernel-update package - down as a side effect; it had to be manually
+  reinstalled. It also tried to remove `e2fsprogs`, and only failed because
+  apt refused without `--allow-remove-essential` (`e2fsprogs` is
+  Debian-essential). Fixed by moving `e2fsprogs`/`dosfstools`/`exfat-fsck`
+  out of `dependencies.packages` entirely and into a plain, untracked
+  `apt-get install` inside `fpp_install.sh` that only ever ensures they
+  exist - they're base-system filesystem tools present on virtually every
+  FPP image already, not something this plugin should claim ownership of
+  for removal purposes. `testdisk`/`zip`/`rsync` stayed in
+  `dependencies.packages`, since those genuinely are this plugin's own
+  dependencies and safe to reference-count.
+- **Open question, not a bug**: uninstall also deletes any recovery zip
+  sitting in the plugin's state dir that was generated but never downloaded,
+  with no warning. Confirmed happening on real hardware; not yet decided
+  whether uninstall should warn/refuse when one is present, or whether
+  silent cleanup is fine as-is.
+
 ## Validated on real hardware
 
 Real second FPP SD card (`Pi3Test`), read over USB by a second FPP device
@@ -358,6 +410,10 @@ were safely reversible. Confirmed working end-to-end:
 - The full **fsck fallback chain** on a genuinely trashed superblock: failed
   mount -> `fsck -n` diagnosis -> confirmed `fsck -y` repair -> automatic
   mount retry -> clean Verify, zero data loss (see the section above)
+- **Uninstall**, after the fixes above: both mountpoints cleaned up, the
+  plugin's own state dir removed, the plugin directory itself removed, and
+  `raspi-firmware`/`dosfstools`/`rsync` confirmed reinstalled cleanly
+  afterward
 
 **Not yet validated:**
 

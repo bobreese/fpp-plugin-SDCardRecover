@@ -22,5 +22,32 @@
         "packages": ["testdisk", "zip", "rsync"],
         "python": [],
         "scripts": []
+    },
+    "privacy": {
+        "summary": "Recovers files from a second, damaged FPP SD card onto this device, a USB drive, or a zip. Restoring Config overwrites this device's own settings; card repair is optional and irreversible.",
+        "sends": [],
+        "collects": [],
+        "sensors": [],
+        "remoteAccess": "none",
+        "systemChanges": [
+            {
+                "kind": "service",
+                "what": "Mounts an attached, possibly-damaged second SD card read-only to scan and recover from it."
+            },
+            {
+                "kind": "service",
+                "what": "If you choose repair, runs fsck -y (irreversible) on that second card only, after your separate confirmation."
+            },
+            {
+                "kind": "service",
+                "what": "Mounts a second USB drive read-write, only if you pick it as the recovery destination."
+            },
+            {
+                "kind": "core-settings",
+                "what": "If Config is included, overwrites this device's own name, network settings, and configuration with the second card's."
+            }
+        ],
+        "closedCode": false,
+        "other": "This device's settings file, if you restore it here, can include its saved WiFi password and other locally-stored secrets - treat an exported zip or USB drive that includes Config as sensitive."
     }
 }
