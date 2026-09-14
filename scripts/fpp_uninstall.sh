@@ -11,8 +11,8 @@
 #
 # FPP's own Uninstall confirmation (www/plugins.php) is a generic dialog
 # with no per-plugin hook - a plugin can't inject a "download it first?"
-# choice into it, and this script itself runs non-interactively via sudo
-# with nothing to prompt on. So instead of asking, any recovery zip that
+# choice into it, and this script itself already runs non-interactively as
+# root with nothing to prompt on. So instead of asking, any recovery zip that
 # was generated but never downloaded gets moved to media/upload/ - FPP's
 # File Manager already lists and can download anything there (Uploads tab)
 # - rather than being silently deleted along with the rest of the scratch
