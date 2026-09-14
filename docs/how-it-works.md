@@ -1,99 +1,53 @@
-# How This Plugin Is Built
+# How SDCard Recover Works
 
-Notes on the FPP plumbing this plugin relies on, confirmed against FPP's
-own real source rather than guessed at - useful if you're maintaining this
-plugin or building another one against the same conventions.
+What actually happens as you go through the wizard, step by step.
 
-## Progress UI
+1. **Attach the second card.** Plug the possibly-damaged FPP SD card into
+   this device over a USB SD-card reader.
+2. **Scan (Step 1).** Click **Scan** to list removable USB block devices -
+   the card should show up as soon as it's detected. Not seeing it? Click
+   **Rescan**, or reseat the card/reader; the page shows a "Reattach USB SD
+   Card" prompt next to the Scan/Rescan buttons whenever nothing is found.
+3. **Mount & verify readability (Step 2).** Click **Mount read-only** to
+   mount the card's media partition read-only as `DamagedSD` (Step 3 just
+   shows the resulting mount state). Once mounted, every config/media file
+   on it is read end-to-end to confirm it's actually readable - a bad
+   sector shows up as a real read error here, not a guess based on
+   filesystem metadata.
+   - **If the mount itself fails**, a non-destructive check
+     (`fsck -n`, read-only, changes nothing) is offered. If that finds real
+     filesystem problems, a separate, explicitly-confirmed **repair**
+     (`fsck -y`) is offered - this one **writes to the card and cannot be
+     undone**, so it's never run automatically. See
+     [Testing & Real-Hardware Findings](testing.md#the-fsck-fallback-ui-could-never-actually-appear-real-bug-real-corruption-test)
+     for how this fallback chain was validated on a genuinely corrupted
+     card.
+   - **Optional deep scan**: if the filesystem still won't mount, or
+     verification found files the filesystem can no longer locate, a raw
+     signature-based scan (`photorec`) can search the card directly for
+     recognizable file data, independent of the filesystem's health. Slower,
+     and recovered files come back with generic names since there's no
+     directory structure left to recover them from - see
+     [Architecture](architecture.md) for how this is scoped to FPP's own
+     file types.
+4. **Evaluate (Step 4).** Click **Evaluate** to compare how much data was
+   found recoverable against free space on this device's own local storage,
+   before committing to anything.
+5. **Recover (Step 5).** Pick one or more destinations:
+   - **Restore directly into this device's own media folders** -
+     category-selective: only the categories you check are touched, and
+     only files already confirmed readable in Step 2. Including **Config**
+     needs its own explicit confirmation, since it overwrites this device's
+     own name, network settings, and other core configuration - see the
+     in-app warning for the full rollback procedure, and
+     [Privacy Declaration](privacy.md) for what else that can carry along
+     with it (this device's saved WiFi password, and FPP's Initial Setup
+     wizard reappearing once after a reboot).
+   - **A second attached USB drive** - it must already have a filesystem on
+     it; this won't format one for you.
+   - **A zip file**, downloaded straight to your computer.
 
-Reuses FPP's actual streaming mechanism (`StreamURL()` in `www/js/fpp.js` -
-a long-poll `xhr.onprogress` diff, not WebSocket/SSE) the same way Copy
-Settings and the Remote Backups page do. Note: FPP's real backup pages
-don't show a numeric percentage - what looks like "progress" there is the
-live log text. This plugin's progress bars are indeterminate ("working..."
-animation) while a step streams, turning solid on completion, since
-there's no byte-accurate source to compute a true percentage from
-fsck/rsync/photorec output.
-
-## pluginInfo.json schema (confirmed against live FPP v10.x source)
-
-The initial scaffold guessed at this schema and got it wrong in ways that
-broke installation entirely. Confirmed by pulling FPP's actual
-`www/plugins.php` (the code that reads this file) and `fpp-plugin-Template`'s
-real `pluginInfo.json`:
-
-- **`repoName` is required** and must exactly match the GitHub repo name
-  (`fpp-plugin-SDCardRecover`). FPP's install/uninstall/update/icon lookups
-  are all keyed by this field, read directly out of the JSON - not derived
-  from `name` or `srcURL`. Omitting it is why "Install anyway" failed with
-  *"Could not find plugin in pluginInfo cache"*: the plugin got cached under
-  `repoName: undefined`, which doesn't match the string the Install button
-  was wired to look up.
-- **`description` is a single field**, not `shortDescription`/`longDescription`.
-- **`iconURL` must be an absolute URL** (e.g. a `raw.githubusercontent.com`
-  link), not a path relative to the repo - a relative one resolves against
-  nothing FPP can use and silently falls back to a text-initial avatar.
-- **Version compatibility is picky about explicit major-version coverage**:
-  a version entry with no explicit `maxFPPVersion` is only treated as
-  "compatible" with the FPP major version it was authored against
-  (`minFPPVersion`'s major) - an open-ended range starting at an old major
-  still gets flagged "not updated for FPP 10" on a v10 box. Since this
-  plugin has only ever been tested against v10.x (the original `7.0` minimum
-  was an unverified guess made during initial scaffolding, not a real
-  compatibility claim), `versions` now honestly declares `10.0` - `0`
-  (unbounded) only.
-
-## Page routing (confirmed against live FPP v10.x source, after real install failures)
-
-Getting this plugin to actually load surfaced three more schema/plumbing bugs,
-found by pulling FPP's real `www/plugin.php`, `www/menu.inc` conventions, and
-a working plugin (`fpp-LoRa`)'s source, rather than guessing:
-
-- **`menu.inc` is not just a data file.** FPP `include`s it directly and
-  expects it to `printf` the actual `<li><a>` HTML itself, using `$plugin`/
-  `$menu` variables FPP injects - the original scaffold only defined
-  `$menuEntries` with no rendering loop, and its `'page'` value was a whole
-  pre-built URL instead of the bare filename (`status.php`) FPP's own loop
-  turns into `plugin.php?plugin=<repo>&page=<page>`. The bare/pre-built
-  mismatch is exactly what produced *"Error with plugin, requesting a page
-  that doesn't exist: fpp-plugin-SDCardRecover/plugin.php?_menu=...&page=status.php"*
-  - `www/plugin.php` builds that exact `$pluginName/$pageName` error string
-    verbatim when `page=` doesn't resolve to a real file.
-- **There is no clean static URL for a plugin's own PHP files, and no
-  `pluginBaseURL()` helper** (both `status.php` and `js/sdcard-recover.js`
-  originally assumed one existed - it doesn't). Confirmed in `plugin.php`:
-  `file=...` always ends in `readfile()`, so a `.php` file requested that way
-  is served as its own source text, never executed. The only way to run a
-  plugin's PHP dynamically is `plugin.php?plugin=<repo>&page=<file>&nopage=1`,
-  which `include_once`s it into the same request - `stream.php`, `api.php`,
-  and the JS that calls them were rewritten around this.
-- **`js`/`css` assets need no manual `<link>`/`<script>` tags at all** -
-  `plugin.php` auto-scans the plugin's `js/` and `css/` directories and
-  injects a tag per file it finds, each pointing at
-  `plugin.php?plugin=<repo>&file=js/<name>&nopage=1`. `status.php`'s manual
-  tags (via the nonexistent `pluginBaseURL()`) were redundant on top of being
-  broken.
-- **`api.php`'s original `getEndpoints<Plugin>()` self-registration doesn't
-  apply here.** That's a real FPP convention, but for routes served by
-  fppd's own C++ backend and proxied through Apache's `/plugin-apis/<name>`
-  rule (confirmed via `fpp-LoRa`, which calls
-  `fetch('api/plugin-apis/LoRa')`) - a different mechanism requiring backend
-  registration this plugin doesn't have. `api.php` is now a plain
-  `?page=api.php&nopage=1&endpoint=...` dispatcher, consistent with how
-  `stream.php` actually works.
-- **`stream.php`'s `require_once` path was wrong.** It used
-  `dirname(__FILE__) . '/../../common.php'`, which resolves two directories
-  above the plugin - outside it entirely - and would fatal. Since this file
-  is only ever `include_once`'d by `plugin.php` (never requested directly),
-  the fix is the same bare `require_once "common.php";` `plugin.php` itself
-  uses, which PHP resolves against FPP's www root as the request's top-level
-  script.
-
-## Developing from Windows: watch the executable bit
-
-This repo's git config has `core.filemode=false` (Windows/NTFS default), so
-a plain `chmod +x` on a new script is silently ignored by git and it gets
-committed as `100644` - it'll clone fine but `sudo`/exec on Linux fails
-with "command not found". This bit every script the first time
-(`sdcard_scan.sh` and friends all had to be fixed after the fact). Force it
-explicitly per file instead: `git update-index --chmod=+x path/to/script.sh`.
+   Click **Recover** once you've made your choices. Every step along the
+   way is also written to `media/logs/SDCardRecover.log`, viewable and
+   downloadable from FPP's own File Manager -> Logs tab, not just the live
+   log panel on this page.

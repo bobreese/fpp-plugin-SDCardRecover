@@ -26,7 +26,8 @@ without running any destructive repair unless you explicitly ask for it.
 
 ## Documentation
 
-- [How This Plugin Works](docs/how-it-works.md) - pluginInfo.json schema and FPP page routing, confirmed against live FPP source
+- [How This Plugin Works](docs/how-it-works.md) - a step-by-step walkthrough of the 5-step recovery wizard
+- [Architecture](docs/architecture.md) - pluginInfo.json schema and FPP page routing, confirmed against live FPP source
 - [Directory Layout](docs/directory-layout.md)
 - [Installing This Plugin](docs/installing.md) - manual install, since it isn't in FPP's Plugin Manager search yet
 - [Privacy Declaration](docs/privacy.md) - what's declared in pluginInfo.json's privacy block, and why
