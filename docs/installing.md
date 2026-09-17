@@ -124,10 +124,3 @@ memory, never reaches the server, and there is no fourth tier for that. The
 icon displays correctly the moment the plugin is actually installed (Tier 1
 applies as soon as `icon.png` exists on disk) - this is purely a pre-install
 preview quirk of the developer-only manual-URL workflow.
-
-## Suggested repo name
-
-FPP's plugin-manager convention names repos `fpp-plugin-<Name>` (see
-`fpp-plugin-Template`) so FPP can recognize and install it - this scaffold
-uses `fpp-plugin-SDCardRecover` for that reason, with "SDCard Recover" kept
-as the human-facing name in `pluginInfo.json`.
