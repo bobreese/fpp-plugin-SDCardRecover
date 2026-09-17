@@ -1,6 +1,8 @@
 # How SDCard Recover Works
 
-What actually happens as you go through the wizard, step by step.
+What actually happens as you go through the wizard, step by step. Want to
+see this played out with real log output instead of a plain reference?
+See [Your First Recovery Session, End to End](first-recovery-walkthrough.md).
 
 1. **Attach the second card.** Plug the possibly-damaged FPP SD card into
    this device over a USB SD-card reader.
