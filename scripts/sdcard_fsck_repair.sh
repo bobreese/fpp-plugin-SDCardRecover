@@ -23,6 +23,14 @@ FSTYPE=$(lsblk -no FSTYPE "$PART")
 log "WARNING: running repair (fsck -y) on $PART (fstype: ${FSTYPE:-unknown})."
 log "This writes changes to the card and is not reversible."
 
+# sdcard_mount_ro.sh's failed attempt (the only way this script is ever
+# reached - see js/sdcard-recover.js) already set this device block-layer
+# read-only via `blockdev --setro`. That protection is exactly what this
+# script's own explicit, user-confirmed action needs to override: without
+# clearing it here, fsck -y would fail with a write/EROFS error against a
+# device the UI just told the user it was about to repair.
+blockdev --setrw "$PART"
+
 case "$FSTYPE" in
     ext2|ext3|ext4)
         fsck.ext4 -y -f -v "$PART"

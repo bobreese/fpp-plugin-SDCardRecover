@@ -743,6 +743,43 @@ it to the existing `download` `systemChanges` entry. `testdisk` stays
 tracked - nothing found suggests FPP core or another plugin uses it, so
 reference-counted removal is the correct behavior for it specifically.
 
+## Read-only mount wasn't a kernel guarantee for every filesystem (found in fpp-data review)
+
+`sdcard_mount_ro.sh` picks mount options by fstype: `ext2`/`ext3`/`ext4`
+get `mount -o ro,noload`, `vfat`/`fat32`/`exfat` get plain `mount -o ro`,
+and anything unrecognized falls through to that same plain `mount -o ro`.
+fpp-data review pointed out that plain `ro` is only the filesystem driver
+agreeing not to write on purpose - it isn't enforced by the kernel at the
+block-device level. The specific, real gap: if `lsblk` fails to identify
+an actual ext2/3/4 partition (empty `FSTYPE`, an exotic partition table,
+or just a card weird enough that this whole plugin exists to recover it),
+the `*` branch mounts it with plain `ro` and no `noload` - and a `ro`
+mount of an ext filesystem with a dirty journal genuinely does replay that
+journal on mount, which is a real write, unless `noload` is given. On a
+card whose only value is what's still readable, an unintended write is
+exactly the outcome this plugin exists to prevent.
+
+Fixed by adding `blockdev --setro "$PART"` before every mount attempt,
+regardless of fstype - a block-layer flag the kernel enforces for any
+write to that specific partition's device node, independent of which
+filesystem driver mounts it or what mount options are given. This
+protects the previously-uncovered `*` branch the same as the named
+ext/vfat/exfat branches, and adds a second, independent layer under the
+existing `noload` flag rather than replacing it.
+
+This interacts with `sdcard_fsck_repair.sh`, which is only ever reached
+after a mount attempt already failed (confirmed in
+`js/sdcard-recover.js`'s `runFsckCheck`/`runFsckRepair` flow) - meaning by
+the time a user clicks the explicit, separately-confirmed "Attempt repair"
+button, `sdcard_mount_ro.sh`'s failed attempt has already left that device
+block-layer read-only. Without a corresponding fix, `fsck -y` - a
+deliberate, user-confirmed write - would have started failing with a
+write/EROFS error the moment the mount-level protection above landed,
+breaking an already-real-hardware-tested feature. Added
+`blockdev --setrw "$PART"` to `sdcard_fsck_repair.sh` right before it
+runs, releasing exactly the protection this one script is supposed to
+override on purpose.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:

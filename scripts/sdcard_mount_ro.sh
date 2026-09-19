@@ -24,6 +24,18 @@ fi
 FSTYPE=$(lsblk -no FSTYPE "$PART")
 log "Attempting read-only mount of $PART (fstype: ${FSTYPE:-unknown}) at $MOUNTPOINT..."
 
+# Block-layer read-only, on top of (not instead of) the mount-level `ro`
+# below - found in fpp-data review: `mount -o ro` alone only asks the
+# filesystem driver not to write; the unrecognized-fstype branch below
+# doesn't even get `noload`, so on an actual ext4 partition the kernel would
+# still replay its journal (a real write) despite `ro`. `blockdev --setro`
+# makes the underlying block device itself reject any write with EROFS,
+# regardless of what filesystem driver claims it or what mount options it's
+# given - a kernel guarantee instead of a filesystem driver's cooperation.
+# Reset before fsck -y in sdcard_fsck_repair.sh, which needs to write here
+# on purpose.
+blockdev --setro "$PART"
+
 case "$FSTYPE" in
     ext2|ext3|ext4)
         mount -o ro,noload "$PART" "$MOUNTPOINT"

@@ -21,7 +21,9 @@ scripts/
                          (start/finish trap per script)
   sdcard_scan.sh         Step 1: list removable USB block devices/partitions
                          (skips 0-byte empty card-reader slots)
-  sdcard_mount_ro.sh     Step 2: read-only mount attempt -> /mnt/DamagedSD
+  sdcard_mount_ro.sh     Step 2: read-only mount attempt -> /mnt/DamagedSD,
+                         backed by `blockdev --setro` (kernel-enforced, not
+                         just the mount option - see docs/testing.md)
   sdcard_fsck_check.sh   Fallback: fsck -n (non-destructive) if mount fails
   sdcard_fsck_repair.sh  Explicit opt-in only: fsck -y (destructive)
   sdcard_verify.sh       Core step: read-test every config/media file (dirs
