@@ -780,6 +780,38 @@ breaking an already-real-hardware-tested feature. Added
 runs, releasing exactly the protection this one script is supposed to
 override on purpose.
 
+## `LOCKFILE` was declared and never used - no protection against concurrent runs (found in fpp-data review)
+
+`common.sh` declared `LOCKFILE="/tmp/sdcard-recover.lock"` from early in
+this plugin's history, but nothing ever opened or locked it - confirmed
+with a repo-wide search turning up exactly one reference, the declaration
+itself. Nothing stopped two browser tabs, or two different people on the
+same network both pointed at this FPP's web UI, from running `mount_ro`,
+`fsck_repair`, and `recover` (rsync) at the same time against the same
+shared `$MOUNTPOINT`, `$MANIFEST`, and `$STATE_DIR` - e.g. one tab's
+`sdcard_recover.sh` rsync mid-copy while another tab's `sdcard_unmount.sh`
+pulls the source card out from under it, or two concurrent `fsck -y`
+repairs racing on the same partition.
+
+Fixed by actually using it: `common.sh` now does
+`exec {SDCR_LOCK_FD}>"$LOCKFILE"` followed by a non-blocking
+`flock -n "$SDCR_LOCK_FD"`, right after `log()` is defined. Every script
+in this plugin sources `common.sh`, so this serializes the whole plugin
+globally - at most one script runs at a time, across all tabs and
+sessions - and a second concurrent attempt fails immediately with a clear
+error instead of silently racing or hanging (neither fppd nor this
+plugin's own UI has any way to show "waiting for another tab"). The lock
+is released automatically when the holding process exits, since it's tied
+to that process's file descriptor - no separate unlock/cleanup code
+needed. Confirmed no script here ever invokes another one as a
+subprocess (`scripts_dispatch.php` dispatches each independently, one per
+request), so there's no self-nesting deadlock risk from a script trying to
+re-acquire a lock it already holds.
+
+`flock` itself is a standard, long-established coreutils primitive, but
+this specific usage hasn't been exercised on real hardware yet - see item
+5 in "Not yet validated" below.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -839,3 +871,7 @@ Confirmed working end-to-end:
    `restartFlag` is set now, which shrinks the risk window, but doesn't
    change that fppd could in principle still be running when the write
    happens. A real architectural change, not yet attempted.
+5. **The new global `flock` lock in `common.sh`** (see the section above) -
+   genuinely running two overlapping recovery sessions against the same box
+   to confirm the second one's failure message and that the first
+   completes undisturbed hasn't been done on real hardware yet.

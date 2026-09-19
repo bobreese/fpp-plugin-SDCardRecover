@@ -155,6 +155,25 @@ log() {
     echo "$line" >> "$LOG_FILE"
 }
 
+# Found in fpp-data review: LOCKFILE was declared above and never actually
+# used - nothing stopped two browser tabs (or two people on the network)
+# from running mount/fsck/rsync against the shared $MOUNTPOINT/$MANIFEST/
+# $STATE_DIR at the same time. Every one of this plugin's scripts sources
+# this file, so acquiring the lock here serializes the whole plugin
+# globally: only one of its scripts runs at a time, across all sessions.
+# Non-blocking on purpose - neither fppd nor this plugin's own UI has any
+# way to show "waiting for another tab," so a second concurrent attempt
+# fails immediately with a clear message instead of hanging silently behind
+# someone else's in-progress operation. Released automatically on exit
+# (the fd just closes), so no separate cleanup is needed - confirmed no
+# script here ever invokes another one as a subprocess (each is dispatched
+# independently by scripts_dispatch.php), so there's no self-nesting risk.
+exec {SDCR_LOCK_FD}>"$LOCKFILE"
+if ! flock -n "$SDCR_LOCK_FD"; then
+    echo "ERROR: another SDCard Recover operation is already running (in this tab, another tab, or another user's session) - wait for it to finish, then retry." >&2
+    exit 1
+fi
+
 ensure_log_file
 SDCR_SCRIPT_NAME=$(basename "$0")
 log "=== $SDCR_SCRIPT_NAME started: $* ==="

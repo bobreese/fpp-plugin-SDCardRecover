@@ -16,7 +16,9 @@ scripts/
   common.sh             Device-name validation (same regex family as FPP core's
                          DriveMountHelper), root-device guard, CATEGORY_RE
                          (the authoritative local-restore category list),
-                         shared paths, and the log()/
+                         shared paths, a global non-blocking flock so only
+                         one of this plugin's scripts runs at a time across
+                         all sessions (see docs/testing.md), and the log()/
                          plugin-fpp-plugin-SDCardRecover.log plumbing
                          (start/finish trap per script)
   sdcard_scan.sh         Step 1: list removable USB block devices/partitions
