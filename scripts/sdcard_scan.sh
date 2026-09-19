@@ -21,7 +21,13 @@ MEDIA_DEV=$(media_device)
 # latter is the more general guard (also covers a device mounted for some
 # other reason entirely), using data lsblk already reports per partition
 # rather than an extra system call per device.
-lsblk -J -b -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,RM,MODEL,TRAN 2>/dev/null | \
+# Captured rather than streamed straight through, unlike the slow scripts
+# (fsck/rsync/photorec) - this is a single near-instant lsblk+PHP pass, so
+# buffering the whole (small) output to separate out NOTE: lines below costs
+# nothing noticeable, and lets those notes also reach $LOG_FILE like every
+# other message this plugin logs (see common.sh's log()) instead of only
+# ever showing up in the live browser panel and being lost afterward.
+SCAN_OUTPUT=$(lsblk -J -b -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,RM,MODEL,TRAN 2>/dev/null | \
 php -r '
 $data = json_decode(file_get_contents("php://stdin"), true);
 $rootDev = $argv[1];
@@ -63,11 +69,42 @@ function walk($devices, $rootDev, $mediaDev) {
                         "partition"=> true,
                     ]) . "\n";
                 }
+            } elseif (!empty($d["fstype"])) {
+                // "Superfloppy" media - a filesystem written directly on the
+                // whole disk, no partition table at all (some USB sticks,
+                // especially smaller/cheaper ones, ship this way). No
+                // separate partition device node exists for the kernel to
+                // report as a child, but the disk itself is a real,
+                // recoverable destination - offer it as its own "partition".
+                echo json_encode([
+                    "device"   => $path,
+                    "parent"   => $path,
+                    "size"     => $d["size"],
+                    "fstype"   => $d["fstype"],
+                    "mounted"  => $d["mountpoint"] ?? null,
+                    "partition"=> true,
+                ]) . "\n";
+            } else {
+                // Neither a partition the kernel exposed a device node for,
+                // nor a filesystem directly on the disk - found on real
+                // hardware with a USB stick whose partition table was
+                // corrupted (fdisk showed a partition starting past the end
+                // of the 7.45 GiB disk; the kernel logged a bare "sda:" with
+                // no children and created no /dev/sda1). Nothing this script
+                // can offer as a destination - the drive needs to be
+                // repartitioned/reformatted on another computer first (this
+                // plugin does not format one, by design). Logged so "why is
+                // my drive missing from the list" has an answer instead of
+                // silence.
+                echo "NOTE: $path (" . ($d["model"] ?? "unknown model") . ", " . $d["size"] . " bytes) has no partitions and no filesystem of its own - skipping as a destination candidate. If this is a drive you expected to see, its partition table may be corrupted; repartition/format it on another computer first.\n";
             }
         }
     }
 }
 walk($data["blockdevices"] ?? [], $rootDev, $mediaDev);
-' "$ROOT_DEV" "$MEDIA_DEV"
+' "$ROOT_DEV" "$MEDIA_DEV")
+
+echo "$SCAN_OUTPUT" | grep -v '^NOTE: '
+echo "$SCAN_OUTPUT" | grep '^NOTE: ' | while IFS= read -r note; do log "$note"; done
 
 log "Scan complete."

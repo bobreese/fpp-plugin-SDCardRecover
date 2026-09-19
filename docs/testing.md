@@ -1012,6 +1012,76 @@ two is exactly what produced the wrong conclusion here. `docs/privacy.md`
 corrected to cite §6.2 directly instead of the earlier, incorrect
 reasoning.
 
+## Destination dropdown never populated for a USB stick with a corrupted partition table (real bug, real hardware)
+
+Real-hardware test on `GPIOTest`: `sdcard_scan.sh` found both a real second
+SD card and a SanDisk Cruzer USB stick in Step 1, but after mounting the
+SD card as the source and reaching Step 5, clicking **Refresh** to find
+the Cruzer as a destination never populated the `#sdcr-usb-target`
+dropdown - it stayed on the placeholder no matter how many times it was
+clicked.
+
+Root cause, confirmed from the plugin's own downloaded log bundle rather
+than guessed: the Cruzer's own partition table is corrupted. `fdisk -l`
+showed `/dev/sda1` starting at sector 1,948,285,285 on a disk that is only
+15,633,408 sectors long - a partition starting roughly 125x past the end
+of the drive, plus a zero-length `sda2` and a bogus `sda4` - and the
+kernel's own boot log recorded a bare `sda:` with nothing after the colon
+when the drive was attached, meaning it refused to create any
+`/dev/sda1`-style partition device node for it at all (compare to the
+real SD card in the same log, which showed ` sdc: sdc1 sdc2`).
+
+That traced to a genuine gap in `sdcard_scan.sh`: its `lsblk`-driven scan
+only ever emitted a `"partition": true` JSON line for a disk's actual
+`children` (kernel-exposed partition device nodes). A disk with none -
+whether because its table is corrupted (this Cruzer) or because it is
+"superfloppy" media with a filesystem written directly on the whole disk
+and no partition table at all (some smaller/cheaper USB sticks ship this
+way) - produced only a bare "disk" line and no "partition" line at all.
+`js/sdcard-recover.js`'s `populateUsbDestinations()` builds the
+destination `<select>` exclusively from `sdcr.usbDevices`, which is
+populated exclusively from `"partition": true` lines - so a disk with zero
+partition children could never appear there, silently, no matter how many
+times Refresh ran. (It could still appear as a Step 1 *source* candidate,
+since that list is built from the disk lines directly - which matches
+exactly what was observed: found in Step 1, absent from Step 5.)
+
+Fixed with two real, distinct cases in `sdcard_scan.sh`:
+
+- **Superfloppy media** (no partition children, but the disk itself
+  reports an `fstype`): now emits a synthetic `"partition": true` line
+  using the disk's own device path as both `device` and `parent`, so a
+  genuinely usable whole-disk filesystem shows up as a selectable
+  destination the same as a normal partitioned drive would.
+- **Neither partitions nor a filesystem of its own** (this Cruzer's actual
+  case): still correctly offers nothing as a destination - there is
+  nothing usable to offer, and this plugin does not format drives - but
+  now logs a clear `NOTE:` line naming the device, its model, and size,
+  and pointing at a corrupted partition table as the likely cause, instead
+  of silence. Verified the classification logic (which of the three cases
+  a device falls into) against three synthetic `lsblk`-shaped device
+  trees - a normal unmounted disk with real partitions, a superfloppy
+  disk, and this exact corrupted-Cruzer shape - reproducing the real
+  values from the downloaded log (7.45 GiB, model "Cruzer", no children,
+  no disk-level fstype) before committing.
+
+Restructured the scan's output handling to make the `NOTE:` line land in
+the plugin's own persistent log (`media/logs/plugin-fpp-plugin-SDCardRecover.log`),
+not just the live browser panel: the `lsblk`/PHP pipeline's output is now
+captured into a variable (this operation is a single near-instant pass,
+unlike the genuinely slow fsck/rsync/photorec scripts that need real
+incremental streaming) instead of streamed directly, then `NOTE:` lines
+are split out and re-emitted through `common.sh`'s own `log()` function
+so they persist the same way every other message this plugin logs does -
+matching the plugin's own established single-log-file convention rather
+than adding a second, log-file-invisible diagnostic channel.
+
+This specific Cruzer stick still cannot be used as a recovery destination
+until its partition table is fixed or recreated on another computer - that
+part is a real limitation of the drive, not something this plugin can or
+should work around by formatting it. What was fixed is that the plugin
+now says so, instead of leaving an empty dropdown as the only signal.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1075,3 +1145,10 @@ Confirmed working end-to-end:
    genuinely running two overlapping recovery sessions against the same box
    to confirm the second one's failure message and that the first
    completes undisturbed hasn't been done on real hardware yet.
+6. **The new superfloppy-media branch in `sdcard_scan.sh`** (see "Destination
+   dropdown never populated..." above) - confirmed the classification logic
+   against a synthetic device tree shaped like one, but an actual USB stick
+   with a filesystem written directly on the whole disk (no partition table)
+   has not been tested as a real destination yet. The corrupted-partition-table
+   `NOTE:` path, on the other hand, was confirmed against the real Cruzer
+   stick that surfaced this whole finding.
