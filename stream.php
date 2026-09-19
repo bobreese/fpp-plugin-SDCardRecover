@@ -16,6 +16,14 @@
  * disables output buffering and shells a whitelisted script out via sudo so
  * the browser's StreamURL() can tail live progress exactly the way FPP's own
  * Copy Settings / Remote Backups pages do.
+ *
+ * cmd/args come from POST, not GET - found in fpp-data review: every action
+ * dispatched from here, including fsck_repair (fsck -y) and recover (which
+ * can overwrite this device's own Config), used to be reachable via a plain
+ * GET with cmd/args in the query string, meaning a bare <img src="..."> on
+ * any page the logged-in admin's browser loaded could fire one. See
+ * js/sdcard-recover.js's streamCommand() for the client-side half of this
+ * fix.
  */
 
 require_once "config.php";
@@ -24,8 +32,8 @@ require_once dirname(__FILE__) . '/scripts_dispatch.php';
 
 DisableOutputBuffering();
 
-$cmd  = isset($_GET['cmd']) ? $_GET['cmd'] : '';
-$args = isset($_GET['args']) ? $_GET['args'] : [];
+$cmd  = isset($_POST['cmd']) ? $_POST['cmd'] : '';
+$args = isset($_POST['args']) ? $_POST['args'] : [];
 
 header('Content-Type: text/plain');
 

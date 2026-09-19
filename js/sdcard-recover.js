@@ -44,24 +44,20 @@
     }
 
     /**
-     * Streams stream.php?cmd=<cmd>&args[...] into the <pre> with id logId.
-     * Calls onDone(exitOk, fullText) when the stream closes.
+     * Streams stream.php (cmd/args in the POST body) into the <pre> with id
+     * logId. Calls onDone(exitOk, fullText) when the stream closes.
      */
     function streamCommand(cmd, args, logId, progressId, onDone) {
         var logEl = document.getElementById(logId);
         logEl.textContent = '';
         setProgress(progressId, true);
 
-        var qs = 'cmd=' + encodeURIComponent(cmd);
+        var url = sdcrPageUrl('stream.php');
+
+        var body = 'cmd=' + encodeURIComponent(cmd);
         Object.keys(args || {}).forEach(function (k) {
-            qs += '&args[' + encodeURIComponent(k) + ']=' + encodeURIComponent(args[k]);
+            body += '&args[' + encodeURIComponent(k) + ']=' + encodeURIComponent(args[k]);
         });
-        // Cache-bust: an identical repeat request (e.g. clicking Rescan right
-        // after Scan) could otherwise be served from the browser's HTTP
-        // cache instead of actually re-running - the same reason FPP's own
-        // StreamURL() sets cache:false on every call.
-        qs += '&_=' + Date.now();
-        var url = sdcrPageUrl('stream.php', qs);
 
         // Deliberately NOT using FPP core's window.StreamURL() here: its
         // doneCallback/errorCallback are looked up as GLOBAL FUNCTION NAMES
@@ -73,9 +69,24 @@
         // server (confirmed by running the script directly) but the UI never
         // found out. Same onprogress-diffing technique StreamURL() uses
         // internally, just wired through a real callback closure instead.
+        //
+        // POST, not GET - found in fpp-data review: every one of these
+        // actions, including fsck_repair (fsck -y) and recover (which can
+        // overwrite this device's own Config), used to run as a plain GET
+        // with cmd/args in the query string. FPP core does the same for some
+        // of its own destructive endpoints (e.g. GET /api/system/reboot,
+        // confirmed in www/api/controllers/system.php), so this wasn't a
+        // novel mistake - but a GET request needs nothing more than a plain
+        // <img src="..."> on any page the logged-in admin's browser loads to
+        // fire, no JS or CORS check required. POST isn't a complete CSRF fix
+        // on its own (a same-origin form could still forge one), but it
+        // closes off that single-tag drive-by case for free. It also drops
+        // the old GET version's cache-busting `_=Date.now()` query param -
+        // browsers don't cache POST responses, so it's no longer needed.
         var xhr = new XMLHttpRequest();
         var lastLen = 0;
-        xhr.open('GET', url, true);
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         xhr.onprogress = function (e) {
             var full = e.currentTarget.responseText || e.currentTarget.response || '';
             if (full.length > lastLen) {
@@ -110,7 +121,7 @@
             setProgress(progressId, false);
             onDone(false, logEl.textContent);
         };
-        xhr.send();
+        xhr.send(body);
     }
 
     // Confirmed against FPP's actual www/plugin.php: there is no clean static

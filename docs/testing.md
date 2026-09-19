@@ -847,6 +847,63 @@ zip-download link) only ever embed numbers this plugin computed itself or
 its own generated filenames, not raw external device-reported strings, so
 they were left alone rather than churned for a bug they don't have.
 
+## Every action - including `fsck_repair` and the Config overwrite - was a plain `GET` (found in fpp-data review)
+
+`js/sdcard-recover.js`'s `streamCommand()` (the single function every wizard
+step goes through - scan, mount, `fsck_check`, `fsck_repair`, `carve`,
+`verify`, `recover`, `unmount`) sent `cmd`/`args` as a query string on a
+plain `xhr.open('GET', url, true)`, and `stream.php` read them back out of
+`$_GET`. That includes `fsck_repair` (`fsck -y`, a real, irreversible
+write) and `recover` with Config selected (overwrites this device's own
+name/IP/settings) - both real actions, not read-only ones, reachable with
+nothing more than a GET request carrying the right query string.
+
+The real risk fpp-data review named: a GET request doesn't need
+JavaScript or same-origin permission to fire from an attacker's page - a
+bare `<img src="http://<this-fpp>/plugin.php?...&cmd=fsck_repair&args[device]=...">`
+on any web page the logged-in admin's browser merely loads would fire it,
+browser-enforced same-origin policy or not (an `<img>` tag's GET isn't
+subject to it the way a cross-origin `fetch()`/XHR read would be).
+
+Checked the reviewer's own comparison before treating this as
+plugin-specific: confirmed live in FPP core's actual
+`www/api/controllers/system.php` - `/api/system/reboot` really is declared
+`@route GET`. So this wasn't a novel mistake unique to this plugin; FPP
+core has the same shape of issue on at least one of its own destructive
+endpoints. That made it defensible as "consistent with FPP," not
+something blocking submission - but moving to POST costs nothing and
+narrows the exposure regardless of what FPP core eventually does with its
+own endpoints.
+
+Fixed both sides: `streamCommand()` now does `xhr.open('POST', url, true)`
+with `cmd`/`args` moved into the request body
+(`application/x-www-form-urlencoded`) instead of the query string, and
+`stream.php` reads `$_POST['cmd']`/`$_POST['args']` instead of `$_GET`.
+`ajax.php`'s two endpoints (`evaluate`, `download`) were left alone -
+both are read-only (no state change), and `download` specifically has to
+stay a plain link a browser can navigate to directly. Also dropped the
+old GET version's `_=Date.now()` cache-busting query param - browsers
+don't cache POST responses in the first place, so it was dead weight once
+GET wasn't the transport anymore.
+
+Verified the client-side change actually does what it's supposed to
+before committing: stubbed `XMLHttpRequest` in a real browser JS engine
+and confirmed `streamCommand('fsck_repair', {device: '/dev/sdb1'}, ...)`
+opens `POST` against a URL with no `cmd`/`args` in it at all, and sends
+`cmd=fsck_repair&args[device]=%2Fdev%2Fsdb1` as the request body -
+exactly the encoding `stream.php`'s existing `$_POST['args']['device']`
+access already expects, since PHP parses bracket-array syntax identically
+whether it arrives via `$_GET` or `$_POST`.
+
+Worth being honest about what this does and doesn't fix: POST alone isn't
+a complete CSRF defense - a same-origin form or a fetch with
+`credentials: 'include'` could still forge one from a malicious page that
+gets the admin to visit it, since neither FPP core nor this plugin uses
+CSRF tokens or checks `Origin`/`Referer`. What POST does close off is the
+single-tag, JavaScript-free drive-by case the reviewer specifically
+described - a real, cheap improvement, not a claim that this is now fully
+CSRF-proof.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
