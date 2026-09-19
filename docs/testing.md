@@ -417,6 +417,48 @@ plugin's own `common.sh` first (none - FPP's are camelCase like
 `ensureLogFile`/`startPluginLog`, this plugin's are snake_case) before
 sourcing the whole file.
 
+## Config restore wrote straight to disk with fppd possibly still running, no restart flag (found in fpp-data review, partially fixed)
+
+Another review finding, researched against fppd's own C++ source rather
+than taken at face value. `sdcard_recover.sh`'s local-restore path
+`rsync`s straight into `/home/fpp/media/config/` and overwrites
+`/home/fpp/media/settings`/`timezone` directly on disk, then only *logs*
+"restart FPPD" - it never actually told FPP that anything changed.
+
+Confirmed the real risk this creates by reading `src/settings.cpp`: fppd
+loads `settings` into memory once and keeps serving that in-memory copy,
+but its own `setSetting(key, value, persist=true)` doesn't do a full
+rewrite of the settings file - it re-reads the file fresh, finds that one
+key's line, and patches only that line back in. So the danger isn't
+"fppd overwrites everything we just restored" wholesale; it's narrower:
+if anything triggers fppd to persist some *other* setting while it's
+still running on its old, pre-restore in-memory values, that one key
+could get patched with fppd's stale value, landing on top of an
+otherwise-successful restore - and nothing was telling the operator (or
+FPP itself) that a restart was actually needed to avoid that window.
+
+Fixed the part the reviewer called the minimum fix: `sdcard_recover.sh`
+now calls `setSetting restartFlag 1` right after a successful Config
+restore - FPP's own shell `setSetting()` (from `scripts/common`, already
+sourced via this plugin's `common.sh` since the log-naming fix above),
+the same locked, canonical write every other FPP script uses for this,
+not a hand-rolled sed. `restartFlag` is what FPP's own web UI reads
+(`www/api/controllers/system.php`) to show a "Restart Needed" banner
+across every page - not just a line in this plugin's own log a user could
+miss - which shrinks the risk window by making the restart hard to
+overlook.
+
+**Not done**: the reviewer's "better" fix - routing the restore through
+FPP's own `/api/backups` JSON restore or `copy_settings_to_storage.sh`'s
+restore path instead of a raw `rsync`, so fppd's own restore tooling
+handles the coordination rather than a flag set after the fact. That's a
+real architectural change, not a patch: this plugin's local restore is
+category-selective and driven by `sdcard_verify.sh`'s own
+readability-checked manifest, which doesn't map directly onto what either
+of FPP's restore tools expects as input (a full JSON config backup
+archive, or a File-Copy-Backup-shaped directory tree). Left as an open
+item rather than rushed.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -465,3 +507,9 @@ Confirmed working end-to-end:
    plugin's sudoers entry (if FPP requires one per-plugin) isn't set up here.
    (Real testing so far hasn't hit a permissions problem, but that's not the
    same as this being formally set up.)
+4. **Routing local Config restore through FPP's own restore tooling**
+   (`/api/backups` JSON restore, or `copy_settings_to_storage.sh`'s restore
+   path) instead of a raw `rsync` straight to disk - see the section above.
+   `restartFlag` is set now, which shrinks the risk window, but doesn't
+   change that fppd could in principle still be running when the write
+   happens. A real architectural change, not yet attempted.

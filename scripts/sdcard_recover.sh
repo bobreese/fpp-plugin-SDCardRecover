@@ -123,6 +123,16 @@ case "$DEST_TYPE" in
         if [ "$RC" -eq 0 ]; then
             log "Done. Restored into /home/fpp/media/ (categories: ${CATS[*]})"
             if [ "$RESTORING_CONFIG" -eq 1 ]; then
+                # fppd keeps settings in memory and can patch individual keys
+                # back into this same file while it's still running (see
+                # docs/testing.md) - setting restartFlag is FPP's own signal
+                # for "something changed on disk, restart before trusting
+                # what's loaded," surfaced as a banner across the whole web
+                # UI rather than only this plugin's own log. Uses FPP's own
+                # shell setSetting() (sourced via common.sh's scripts/common),
+                # not a hand-rolled sed, so it's the same locked, canonical
+                # write every other FPP script/plugin uses for this.
+                setSetting restartFlag 1
                 log "Config was overwritten - restart FPPD (or reboot) for the new settings (including HostName/network) to take effect."
                 [ -n "$CONFIG_BACKUP" ] && log "  Previous config saved to $CONFIG_BACKUP"
                 [ -n "$SETTINGS_BACKUP" ] && log "  Previous settings file saved to $SETTINGS_BACKUP"
