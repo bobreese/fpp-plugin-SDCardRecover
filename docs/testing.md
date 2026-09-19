@@ -459,6 +459,53 @@ of FPP's restore tools expects as input (a full JSON config backup
 archive, or a File-Copy-Backup-shaped directory tree). Left as an open
 item rather than rushed.
 
+## Root-device guard didn't cover FPP's own storage device (found in fpp-data review)
+
+Another real, confirmed finding. `guard_not_root_device()` only ever
+compared against `root_device()` - the device `/` is mounted from. But
+FPP's media directory doesn't have to be on that same device at all:
+`www/settings-storage.php`'s `storageDevice` setting lets an operator put
+`/home/fpp/media` on its own USB drive entirely. That drive reports
+`tran=usb`, identical to any real damaged-card candidate, so
+`sdcard_scan.sh` was listing FPP's own live storage as a "found" device,
+and `guard_not_root_device()` had nothing that would refuse it - it would
+accept it as a mount/fsck-check/fsck-repair/recover-destination target
+just like any other candidate.
+
+How bad this actually is depends on the filesystem: `e2fsck`'s own
+non-interactive mode refuses to run against a filesystem it detects as
+currently mounted, so `fsck.ext4 -y` against a live ext4 storage device
+was safe *by luck*, not because this plugin did anything to prevent it.
+`fsck.vfat -y` has no equivalent built-in protection and would run
+against a live, mounted FAT filesystem if asked to - a real risk of
+corrupting the device's entire media library, not just its config.
+
+Fixed with two additions to `common.sh`, both used together:
+
+- `media_device()` - resolves whatever device actually backs
+  `/home/fpp/media` (same device as root in the common case, a separate
+  one when `storageDevice` is set), and `guard_not_root_device()` now
+  refuses that device by name, the same way it already refused root's.
+- A general "is any partition of this device mounted somewhere this
+  plugin doesn't already control" check, using `findmnt`. This catches
+  the storage-device case too, but also anything else mounted for any
+  other reason - a broader, more robust guard than naming specific
+  devices one at a time. Deliberately excludes `$MOUNTPOINT`/
+  `$DEST_MOUNTPOINT` specifically: a partition already mounted there is
+  this plugin's *own* prior mount of the exact device being checked (a
+  stale mount from an earlier run about to be unmounted and redone, or
+  the source card still mounted read-only when `sdcard_carve.sh` runs
+  against it) - not something else depending on it. Verified against all
+  five call sites (`sdcard_mount_ro.sh`, `sdcard_fsck_check.sh`,
+  `sdcard_fsck_repair.sh`, `sdcard_carve.sh`,
+  `sdcard_recover.sh`'s usb-destination case) that none of their existing,
+  already-tested mount/remount/unmount sequences would now false-positive.
+
+Also updated `sdcard_scan.sh` to exclude the media device (and anything
+else with an already-mounted partition) from the listing itself, using
+mount data `lsblk` already reports - so a live, in-use device is no
+longer even offered as a candidate, not just refused later if picked.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:

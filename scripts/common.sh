@@ -65,13 +65,61 @@ root_device() {
     findmnt -n -o SOURCE / | sed -E 's/p?[0-9]+$//'
 }
 
+# FPP's media directory isn't always on the root device - www/settings-storage.php's
+# storageDevice setting lets it live on a separate USB drive entirely. --target
+# walks up to the containing mountpoint when the exact path isn't one itself, so
+# this returns the SAME value as root_device() when /home/fpp/media is just a
+# directory on the root filesystem (the common case) - redundant with the
+# root_device() check in that case, not empty, and harmlessly so.
+media_device() {
+    findmnt -n -o SOURCE --target /home/fpp/media 2>/dev/null | sed -E 's/p?[0-9]+$//'
+}
+
+# Refuse to ever touch a device FPP itself is booted from, that's backing FPP's
+# own media directory (which can be a separate storage device - see
+# media_device() above), or that has a partition mounted somewhere this plugin
+# doesn't already control. Found in fpp-data review: this used to check
+# root_device() only, so FPP's own USB storage device (transport type "usb",
+# same as any other candidate) passed straight through - scan listed it,
+# fsck_repair accepted it. e2fsck's own non-interactive mode refuses a mounted
+# ext4 filesystem on its own, so that case was safe by luck, not by anything
+# this plugin did; fsck.vfat -y has no such built-in protection and would run
+# against a live, in-use FAT filesystem if asked to.
+#
+# A partition already mounted at MOUNTPOINT/DEST_MOUNTPOINT is excluded
+# deliberately: that's this plugin's OWN prior mount of the exact device being
+# checked (a stale mount from an earlier run that the caller is about to
+# unmount and redo, e.g. sdcard_mount_ro.sh's own re-mount, or the source card
+# still mounted read-only when sdcard_carve.sh runs) - not something else
+# depending on it. Anywhere else, a mounted partition means something outside
+# this plugin's knowledge or control needs it, and there is no way to know
+# that is safe to interrupt.
 guard_not_root_device() {
     local dev="$1"
-    local root
+    local root media
     root=$(root_device)
+    media=$(media_device)
     local base="/dev/$(basename "$dev" | sed -E 's/p?[0-9]+$//')"
     if [ "$base" = "$root" ]; then
         echo "ERROR: $dev appears to be this FPP's own running storage device. Refusing." >&2
+        exit 1
+    fi
+    if [ -n "$media" ] && [ "$base" = "$media" ]; then
+        echo "ERROR: $dev is backing this FPP's own media directory (/home/fpp/media). Refusing." >&2
+        exit 1
+    fi
+    local part mp
+    for part in "$base"?*; do
+        [ -b "$part" ] || continue
+        mp=$(findmnt -n -o TARGET -S "$part" 2>/dev/null)
+        if [ -n "$mp" ] && [ "$mp" != "$MOUNTPOINT" ] && [ "$mp" != "$DEST_MOUNTPOINT" ]; then
+            echo "ERROR: $dev has a partition ($part) mounted at $mp. Refusing." >&2
+            exit 1
+        fi
+    done
+    mp=$(findmnt -n -o TARGET -S "$base" 2>/dev/null)
+    if [ -n "$mp" ] && [ "$mp" != "$MOUNTPOINT" ] && [ "$mp" != "$DEST_MOUNTPOINT" ]; then
+        echo "ERROR: $dev is mounted at $mp. Refusing." >&2
         exit 1
     fi
 }
