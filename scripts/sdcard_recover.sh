@@ -124,7 +124,15 @@ case "$DEST_TYPE" in
         fi
 
         log "Restoring $CAT_COUNT file(s) directly into /home/fpp/media/ (categories: ${CATS[*]})"
-        rsync -avh --progress --files-from="$CAT_FILELIST" "$SRC_ROOT/" "/home/fpp/media/"
+        # --chown=fpp:fpp - found in fpp-data review: `-a` preserves the
+        # SOURCE card's file ownership, and this script runs as root (via
+        # sudo), so without an explicit chown, whatever uid/gid the damaged
+        # card's files happened to have (not necessarily this box's own
+        # fpp:fpp, e.g. after that card was fscked or touched as root itself)
+        # would land unchanged on THIS device's real media files - files
+        # fppd and the web server (both running as fpp) need to actually own
+        # or at least read.
+        rsync -avh --chown=fpp:fpp --progress --files-from="$CAT_FILELIST" "$SRC_ROOT/" "/home/fpp/media/"
         RC=$?
         rm -f "$CAT_FILELIST"
 

@@ -47,10 +47,6 @@
                 "what": "If Config is included, overwrites this device's own name, network settings, and configuration with the second card's."
             },
             {
-                "kind": "download",
-                "what": "Installs e2fsprogs, dosfstools, exfatprogs, rsync, and zip via apt-get if not already present."
-            },
-            {
                 "kind": "core-settings",
                 "what": "On uninstall, moves any not-yet-downloaded recovery zip to media/upload/ instead of deleting it."
             }

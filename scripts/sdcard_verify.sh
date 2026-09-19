@@ -100,11 +100,22 @@ verify_one_file() {
     # exit code or a short read, without writing anything back to the card.
     local actual
     actual=$(dd if="$f" of=/dev/null bs=1M 2>/tmp/sdcr_dd_err; echo $?)
+    # printf, not `echo -e` - found in fpp-data review: `-e` makes echo
+    # interpret backslash escapes in ITS ARGUMENT, and $rel_f is a filename
+    # from the damaged card, not a literal this script controls. A filename
+    # containing a literal backslash (e.g. "foo\tbar.mp3" - an unusual but
+    # legal ext4 filename) would have its own "\t"/"\n"/etc. reinterpreted as
+    # real tabs/newlines, corrupting this TAB-delimited manifest - a bogus
+    # extra column, or a line split in two - and confusing every downstream
+    # `awk -F'\t'` consumer (sdcard_evaluate.sh, sdcard_recover.sh). printf's
+    # `%s` substitutes each argument verbatim; only the format string itself
+    # is scanned for escapes/specifiers, so arbitrary filename content -
+    # backslashes, percent signs, anything - passes through unmodified.
     if [ "$actual" = "0" ] && [ -n "$expected" ]; then
-        echo -e "${rel_f}\t${expected}\tOK" >> "$MANIFEST"
+        printf '%s\t%s\t%s\n' "$rel_f" "$expected" "OK" >> "$MANIFEST"
         GOOD=$((GOOD+1))
     else
-        echo -e "${rel_f}\t${expected:-0}\tUNREADABLE" >> "$MANIFEST"
+        printf '%s\t%s\t%s\n' "$rel_f" "${expected:-0}" "UNREADABLE" >> "$MANIFEST"
         BAD=$((BAD+1))
         log "  UNREADABLE: $rel_f ($(cat /tmp/sdcr_dd_err | tail -1))"
     fi

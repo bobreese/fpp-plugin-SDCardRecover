@@ -380,6 +380,11 @@
     // Config is among the chosen categories, the explicit "I understand"
     // checkbox must also be checked, since that overwrites THIS device's
     // own name/IP/plugin settings - see the warning text in status.php.
+    // Plugins gets the same gating, found in fpp-data review: restoring it
+    // copies raw plugin code onto this device without ever going through
+    // FPP's own Plugin Manager install flow (no install hook, no privacy
+    // review, no consent screen) - a real risk from a card whose plugin
+    // contents you may not have created yourself, not just a data-loss one.
     function updateRecoverButtonState() {
         var localChecked = $('input[name="sdcr-dest"][value="local"]').checked;
         $('#sdcr-local-categories').style.display = localChecked ? 'block' : 'none';
@@ -387,8 +392,12 @@
         var configChecked = selectedLocalCategories().indexOf('config') !== -1;
         $('#sdcr-config-warning').style.display = (localChecked && configChecked) ? 'block' : 'none';
 
+        var pluginsChecked = selectedLocalCategories().indexOf('plugins') !== -1;
+        $('#sdcr-plugins-warning').style.display = (localChecked && pluginsChecked) ? 'block' : 'none';
+
         var dests = selectedDestinations();
-        var blocked = localChecked && configChecked && !$('#sdcr-config-confirm').checked;
+        var blocked = (localChecked && configChecked && !$('#sdcr-config-confirm').checked) ||
+            (localChecked && pluginsChecked && !$('#sdcr-plugins-confirm').checked);
         // Local also needs at least one category checked, not just the box.
         var localNeedsCategory = localChecked && selectedLocalCategories().length === 0;
         $('#sdcr-btn-recover').disabled = dests.length === 0 || blocked || localNeedsCategory;
@@ -449,22 +458,33 @@
             cb.addEventListener('change', updateRecoverButtonState);
         });
         $('#sdcr-config-confirm').addEventListener('change', updateRecoverButtonState);
+        $('#sdcr-plugins-confirm').addEventListener('change', updateRecoverButtonState);
 
-        // "(see warning)" next to Config was previously just inert text - a
-        // real link now, which checks Config (revealing the warning box,
-        // otherwise there's nothing to scroll to - it's display:none until
-        // then) and scrolls/flashes it so it's obvious that's what's meant.
-        $('#sdcr-config-warning-link').addEventListener('click', function () {
-            var configBox = $('.sdcr-local-cat[value="config"]');
-            if (!configBox.checked) {
-                configBox.checked = true;
+        // "(see warning)" next to Config/Plugins was previously just inert
+        // text (Config) or didn't exist at all (Plugins, added after
+        // fpp-data review flagged that restoring it deserved the same
+        // treatment as Config). Both are real links now: checking the
+        // category (revealing the warning box, otherwise there's nothing to
+        // scroll to - it's display:none until then) and scrolling/flashing
+        // it so it's obvious that's what's meant.
+        wireCategoryWarningLink('sdcr-config-warning-link', 'config', 'sdcr-config-warning');
+        wireCategoryWarningLink('sdcr-plugins-warning-link', 'plugins', 'sdcr-plugins-warning');
+    });
+
+    function wireCategoryWarningLink(linkId, categoryValue, warningBoxId) {
+        var link = $('#' + linkId);
+        if (!link) return;
+        link.addEventListener('click', function () {
+            var catBox = $('.sdcr-local-cat[value="' + categoryValue + '"]');
+            if (!catBox.checked) {
+                catBox.checked = true;
                 updateRecoverButtonState();
             }
-            var warning = $('#sdcr-config-warning');
+            var warning = $('#' + warningBoxId);
             warning.scrollIntoView({ behavior: 'smooth', block: 'center' });
             warning.classList.remove('sdcr-flash-highlight');
             void warning.offsetWidth; // restart the animation if clicked again
             warning.classList.add('sdcr-flash-highlight');
         });
-    });
+    }
 })();

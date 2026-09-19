@@ -53,7 +53,13 @@ See [Your First Recovery Session, End to End](first-recovery-walkthrough.md).
      in-app warning for the full rollback procedure, and
      [Privacy Declaration](privacy.md) for what else that can carry along
      with it (this device's saved WiFi password, and FPP's Initial Setup
-     wizard reappearing once after a reboot).
+     wizard reappearing once after a reboot). Including **Plugins** needs
+     the same explicit confirmation - it copies raw plugin files onto this
+     device without running that plugin's own install step or ever showing
+     you FPP's normal install/privacy screen for it, so only do this with
+     plugins from a card you already trust (see
+     [Testing & Real-Hardware Findings](testing.md) for exactly what that
+     does and doesn't do).
    - **A second attached USB drive** - it must already have a filesystem on
      it; this won't format one for you.
    - **A zip file**, downloaded straight to your computer.

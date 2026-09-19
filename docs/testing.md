@@ -904,6 +904,114 @@ single-tag, JavaScript-free drive-by case the reviewer specifically
 described - a real, cheap improvement, not a claim that this is now fully
 CSRF-proof.
 
+## `rsync -a` as root preserved the damaged card's file ownership (found in fpp-data review)
+
+`sdcard_recover.sh`'s local-restore rsync (`rsync -avh --progress
+--files-from="$CAT_FILELIST" "$SRC_ROOT/" "/home/fpp/media/"`) runs as
+root (every script here does, via `sudo`), and `-a` (archive mode)
+includes `-o`/`-g` - owner and group preservation. Only root can actually
+set arbitrary ownership on a copy, which is exactly the situation this
+script runs in, so nothing was stopping it: whatever uid/gid the damaged
+card's files happened to carry - not necessarily this box's own `fpp:fpp`,
+for instance if that card had ever been touched as root directly, or came
+from an FPP image with a different `fpp` uid - would land unchanged on
+this device's real `/home/fpp/media/`, files `fppd` and the web server
+(both running as `fpp`) need to actually own or at least read.
+
+Fixed by adding `--chown=fpp:fpp` to that rsync call, so recovered files
+always end up owned by this device's own `fpp` user regardless of what
+the source card's files were owned by. Left the USB-destination rsync
+(`sdcard_recover.sh`'s `usb` case, copying to a user-chosen second drive)
+alone - that's the operator's own external drive, not a location FPP
+itself expects consistent ownership on, and the finding was specifically
+about `/home/fpp/media`.
+
+## `echo -e` could corrupt the manifest on a filename containing a backslash (found in fpp-data review)
+
+`sdcard_verify.sh` wrote each manifest line with
+`echo -e "${rel_f}\t${expected}\tOK" >> "$MANIFEST"`. `-e` makes `echo`
+interpret backslash escapes **in its argument**, and `$rel_f` is a
+filename read off the damaged card - not a literal this script controls.
+Confirmed live in a shell: a filename containing a literal backslash-t
+(`foo\tbar.mp3`, unusual but a legal ext4 filename) came out of
+`echo -e` as `foo<TAB>bar.mp3<TAB>...` - the literal `\t` *inside the
+filename* got reinterpreted as a real tab, silently turning one
+three-column manifest line into a corrupted one with an extra column.
+Every downstream consumer (`sdcard_evaluate.sh`, `sdcard_recover.sh`)
+reads this file with `awk -F'\t'`, so a corrupted line means a
+miscounted file, a truncated filename, or a parse that quietly picks up
+the wrong field.
+
+Fixed by switching both manifest-writing lines to
+`printf '%s\t%s\t%s\n' "$rel_f" "$expected" "OK"` (and the `UNREADABLE`
+equivalent). `printf`'s `%s` substitutes each argument verbatim - only
+the *format string* is ever scanned for escapes/specifiers, never the
+substituted values - so arbitrary filename content (backslashes, percent
+signs, anything) passes through unchanged. Confirmed the fix with the
+same test: the corrected `printf` line preserved the literal `foo\tbar.mp3`
+as one unbroken field.
+
+## Restoring "Plugins" installed code without going through FPP's own install flow (found in fpp-data review)
+
+The Plugins category in Step 5's local restore was a bare checkbox with
+no warning at all - unlike Config, which gets its own "(see warning)"
+link, a dedicated warning box, and a required confirmation checkbox
+before Recover unblocks. Checking what restoring Plugins actually does
+found it deserved the same treatment, for a reason more serious than data
+loss: it's an `rsync` of raw files from the recovered card's
+`home/fpp/media/plugins/` straight into this device's own
+`media/plugins/` - it does not run that plugin's own `fpp_install.sh`,
+does not register it in FPP's plugin tracking, and never shows the
+operator FPP's own install/privacy screen for it. FPP still auto-loads
+plugin code from that directory regardless of how it got there - `api.php`
+is the sharpest example (see the `api.php` finding earlier this round):
+any plugin containing a file literally named that gets `require_once`'d
+on every single FPP API request from that point on. Restoring "Plugins"
+from a card whose contents the operator doesn't already know and trust is
+effectively installing arbitrary third-party code on this device, bypassing
+every safeguard FPP's own Plugin Manager provides.
+
+Given Config already established the pattern for "this category needs
+explicit, informed consent before Recover will run," Plugins got the
+identical treatment rather than a one-off: a `(see warning)` link, a
+warning box explaining exactly what does and doesn't happen, and a
+required "I understand and want to proceed" checkbox that blocks Recover
+the same way Config's does. The two links now share one small
+`wireCategoryWarningLink()` helper in `js/sdcard-recover.js` instead of
+duplicating the same handler twice. Verified the gating logic itself in a
+real browser JS engine before committing: checking Plugins without
+confirming leaves Recover disabled and shows the warning; confirming
+enables it; checking both Config and Plugins with neither confirmed keeps
+Recover disabled and shows both warnings; and clicking a warning link
+auto-checks its category and flashes the box, matching Config's existing,
+already-real-hardware-tested behavior exactly.
+
+## Privacy block over-declared a `download` entry for default-apt-source packages (found in fpp-data review)
+
+`pluginInfo.json` had declared a `download` systemChanges entry for
+`fpp_install.sh`'s untracked `apt-get install` of `e2fsprogs`/
+`dosfstools`/`exfatprogs`/`rsync`/`zip`, on the theory (recorded in
+`docs/privacy.md`) that only packages left in `dependencies.packages`
+were exempt from needing one. Confirmed against the real, current
+`PLUGIN_GUIDELINES.md` §6.2, fetched fresh rather than relied on memory:
+"Packages taken from the default apt, PyPI, npm and CPAN sources are
+*not* a `download` and need no `privacy` entry." All five packages come
+from a plain `apt-get install` against the box's already-configured
+default apt sources - no added package source, no `curl|bash`, no vendor
+binary - so the exemption applies regardless of whether they're declared
+in `dependencies.packages` or installed by hand, which this doc had
+backwards.
+
+The reviewer called this over-declaration "harmless," and it is - an
+extra disclosure doesn't mislead an operator the way a missing one would.
+Removed it anyway: the `dependencies.packages`-vs-`fpp_install.sh`
+placement question (see the `raspi-firmware`/`rsync`/`zip` incidents
+above) is entirely about reference-counted *removal* safety, a completely
+separate question from what needs a `privacy` entry, and conflating the
+two is exactly what produced the wrong conclusion here. `docs/privacy.md`
+corrected to cite §6.2 directly instead of the earlier, incorrect
+reasoning.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:

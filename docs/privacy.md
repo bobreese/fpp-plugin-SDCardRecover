@@ -21,7 +21,7 @@ have to re-derive the reasoning from scratch.
 - **`closedCode: false`** - everything that runs is either this plugin's own
   visible source or standard open Debian packages (`e2fsprogs`,
   `dosfstools`, `exfatprogs`, `testdisk`, `zip`, `rsync`).
-- **`systemChanges`** - six entries, each mapped to the closest fit in
+- **`systemChanges`** - five entries, each mapped to the closest fit in
   FPP's fixed vocabulary (`service`, `network`, `core-settings`, `download`,
   `package-source`, `tunnel`, `reads-core-credentials`, `privilege`):
   - Three `service` entries for the two mount points this plugin owns
@@ -29,13 +29,17 @@ have to re-derive the reasoning from scratch.
     the `fsck -y` repair action.
   - One `core-settings` entry for Config restore overwriting this device's
     own name/network/configuration.
-  - One `download` entry for the untracked `apt-get install` in
-    `fpp_install.sh` (see [Not declared: `privilege`](#not-declared-privilege)
-    below for why these specific packages are installed that way).
   - One `core-settings` entry for `fpp_uninstall.sh` moving an undownloaded
     recovery zip to `media/upload/` instead of deleting it - technically a
     write outside the plugin's own directory, even though it's minor and
     self-generated.
+  - No `download` entry: the untracked `apt-get install` in
+    `fpp_install.sh` only ever installs `e2fsprogs`/`dosfstools`/
+    `exfatprogs`/`rsync`/`zip` from the image's already-configured default
+    apt sources, which `PLUGIN_GUIDELINES.md` §6.2 explicitly exempts from
+    needing a `download` entry at all (see
+    [Not a `download` entry](#e2fsprogsdosfstoolsexfatprogsrsynczip-are-not-a-download-entry)
+    below - an earlier version of this file had this backwards).
 - **`other`** - two things the structured fields above can't say cleanly:
   that a Config export (zip or USB) can carry this device's saved WiFi
   password and other secrets stored in its settings file, and that
@@ -69,7 +73,7 @@ other `service` entries describe - with the `what` text spelling out the
 irreversibility plainly, per the builder's own guidance to pick the closest
 kind for the color and describe the real behavior in the text.
 
-### Why `e2fsprogs`/`dosfstools`/`exfatprogs`/`rsync`/`zip` are a `download` entry, not `dependencies.packages`
+### `e2fsprogs`/`dosfstools`/`exfatprogs`/`rsync`/`zip` are NOT a `download` entry
 
 These are installed by hand in `fpp_install.sh`, deliberately outside
 `pluginInfo.json`'s tracked `dependencies.packages` mechanism - a decision
@@ -79,12 +83,29 @@ tracked package took down `raspi-firmware` on one device, broke a
 completely different plugin's (`fpp-plugin-RemoteBackup`) ability to back up
 this one on another, and removed `zip` from a box where FPP core itself
 uses it (`www/fppEEPROM.php`) regardless of whether this plugin is
-installed. Packages declared in `dependencies.packages` are
-explicitly exempt from needing their own `download` systemChanges entry per
-`PLUGININFO_FORMAT.md` - but a package installed by a plugin's own script,
-outside that mechanism, doesn't get that exemption, so it's declared here
-instead. This is the same pattern `fpp-plugin-RemoteBackup`'s own privacy
-block already uses for its own by-hand package installs.
+installed. That decision - tracked vs. untracked - is about reference-counted
+*removal* safety, and is completely separate from whether installing them
+needs a `privacy` disclosure at all.
+
+An earlier version of this plugin (and this doc) got that second question
+wrong: it declared a `download` systemChanges entry for this
+`apt-get install` line, reasoning that only packages left in
+`dependencies.packages` were exempt from needing one. Found in fpp-data
+review and confirmed against the real, current
+`PLUGIN_GUIDELINES.md` §6.2: "Packages taken from the default apt, PyPI,
+npm and CPAN sources are *not* a `download` and need no `privacy` entry."
+`e2fsprogs`/`dosfstools`/`exfatprogs`/`rsync`/`zip` are all installed with
+a plain `apt-get install` from the box's already-configured default apt
+sources - no added package source, no `curl|bash`, no vendor binary - so
+they're exempt regardless of whether they're declared in
+`dependencies.packages` or installed by hand in `fpp_install.sh`. The
+`download` kind is for software that doesn't meet that bar: a `.deb`
+fetched from somewhere other than the default sources, a self-update, or
+anything closed-source (see `closedCode` above). The reviewer called this
+"harmless" - an extra disclosure doesn't mislead anyone the way a missing
+one would - but removed anyway, since the whole point of this doc is to
+match what's actually declared to what the real rule requires, not what
+seemed cautious at the time.
 
 ## Verified against
 
@@ -93,5 +114,6 @@ block already uses for its own by-hand package installs.
 - `PLUGININFO_FORMAT.md`'s `privacy` section, fetched from
   `fpp-plugin-Template` rather than relied on the builder's own summarized
   copy.
-- `fpp-plugin-RemoteBackup`'s own `pluginInfo.json`, for the `download`-kind
-  precedent for by-hand package installs.
+- `PLUGIN_GUIDELINES.md` §6.2, fetched fresh from `fpp-plugin-Template`,
+  for the exact "default apt/PyPI/npm/CPAN sources need no `download`
+  entry" rule.

@@ -148,7 +148,7 @@
                         <label><input type="checkbox" class="sdcr-local-cat" value="channelmemorymaps"> Pixel Overlay Models (legacy)</label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="playlists"> Playlists</label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="images"> Images</label>
-                        <label><input type="checkbox" class="sdcr-local-cat" value="plugins"> Plugins</label>
+                        <label><input type="checkbox" class="sdcr-local-cat" value="plugins"> Plugins <a href="javascript:void(0)" id="sdcr-plugins-warning-link" class="sdcr-warn-link">(see warning)</a></label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="upload"> Upload</label>
                         <label><input type="checkbox" class="sdcr-local-cat" value="backups"> Backups</label>
                     </div>
@@ -187,6 +187,23 @@
                             place.
                         </div>
                         <label><input type="checkbox" id="sdcr-config-confirm"> I understand and want to proceed</label>
+                    </div>
+
+                    <div id="sdcr-plugins-warning" class="sdcr-danger" style="display:none; margin-top:0.6em; padding:0.6em; border:1px solid currentColor; border-radius:4px;">
+                        Including <strong>Plugins</strong> copies raw plugin files from the
+                        recovered card straight into this device's own
+                        <code>media/plugins/</code> - it does NOT install them the way FPP's
+                        own Plugin Manager does: no install hook runs, and FPP has no record
+                        of these as installed plugins at all. FPP still loads plugin code
+                        from that directory automatically regardless of whether it was
+                        "installed" through the Plugin Manager - a plugin containing a file
+                        literally named <code>api.php</code>, for example, gets executed on
+                        every single FPP API request from that point on, on this device.
+                        If you don't already know what plugins are on the recovered card and
+                        trust them, this can run third-party code on this device that never
+                        went through FPP's own install screen, dependency setup, or privacy
+                        review.
+                        <label><input type="checkbox" id="sdcr-plugins-confirm"> I understand and want to proceed</label>
                     </div>
                 </div>
                 <label><input type="checkbox" name="sdcr-dest" value="usb"> A second attached USB drive (must already have a filesystem on it - this won't format one)
