@@ -1082,6 +1082,48 @@ part is a real limitation of the drive, not something this plugin can or
 should work around by formatting it. What was fixed is that the plugin
 now says so, instead of leaving an empty dropdown as the only signal.
 
+## Destination dropdown could silently exclude a healthy drive that reused the source's old device letter (real bug, real hardware)
+
+Follow-up test on `GPIOTest`, after reformatting the USB stick that
+surfaced the previous finding: this time `fdisk`/`lsblk` confirmed the
+stick had a completely normal, healthy partition (`/dev/sdb1`, 14.6 GiB
+FAT32) - the reformat worked, and this was a different bug. Step 5's
+**Refresh** still could not find it as a destination, even though a
+later full page reload and fresh Step 1 **Scan** did find it.
+
+The real cause: `populateUsbDestinations()` (`js/sdcard-recover.js`)
+skipped any candidate partition whose `parent` matched `sdcr.device` - a
+plain device-path string ("/dev/sda") captured once, at Step 1 selection
+time, and never updated afterward. `dmesg` from this exact session showed
+the destination stick attaching and detaching three separate times
+(re-plugged during testing), and Linux reuses device letters as drives
+come and go - there is nothing that reserves a letter for a device that
+is no longer present. If the source card was originally assigned, say,
+`/dev/sda` at Step 1 and later got reassigned `/dev/sdb` (also observed:
+the source mounted at `sdb2` in this same session, having used other
+letters in earlier sessions), and the destination stick's own later
+insertion happened to land on the now-vacated `/dev/sda`, this check
+compared the destination's *current* letter against the source's *stale*
+one from earlier in the session - matched by coincidence - and silently
+dropped a perfectly healthy destination from the list.
+
+The check was also always redundant in the intended flow, independent of
+the staleness bug: Step 5 is only reachable after Step 2 has mounted the
+source card, and `sdcard_scan.sh`'s own server-side scan already excludes
+any disk with a currently-mounted partition (`$hasMountedChild` in the
+embedded PHP walk) - using live mount state, not a cached client-side
+string, so it can never go stale the same way. The client-side check
+could only ever do useful work in a state the server had already handled
+correctly, or actively harmful work when a stale letter got reused.
+
+Removed the check entirely. Verified the exact failure mode and the fix
+before committing: reproduced the buggy version's output on a synthetic
+scenario shaped like the real one (`sdcr.device` left at a stale
+`/dev/sda` from an earlier selection, a healthy `/dev/sda1` destination
+partition now sitting at that same letter after a replug) in a real
+browser JS engine - the old code left the dropdown empty except for the
+placeholder, the fixed code correctly listed the destination.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1152,3 +1194,10 @@ Confirmed working end-to-end:
    has not been tested as a real destination yet. The corrupted-partition-table
    `NOTE:` path, on the other hand, was confirmed against the real Cruzer
    stick that surfaced this whole finding.
+7. **Removing the stale `sdcr.device` exclusion from `populateUsbDestinations()`**
+   (see "Destination dropdown could silently exclude a healthy drive..."
+   above) - the failure mode and the fix were both confirmed against a
+   synthetic scenario built from this session's own real `dmesg` device-letter
+   churn, but the actual next real-hardware retest (reformatted stick,
+   deliberately replugged mid-session, Refresh clicked at Step 5) has not
+   happened yet.

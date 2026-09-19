@@ -230,11 +230,26 @@
     // sdcard_recover.sh now mounts it itself; a `.mounted`-only list
     // previously found nothing for a real second drive but could offer back
     // the source card's own (read-only) mount as if it were a destination.
+    //
+    // Real bug, found on real hardware and removed: this used to also skip
+    // any partition whose parent matched `sdcr.device` - a plain device-path
+    // string ("/dev/sda") captured once, at Step 1 selection, and never
+    // updated. Linux reuses device letters across a session as USB drives
+    // get unplugged/replugged (confirmed live: the same physical stick
+    // enumerated as /dev/sda, then later /dev/sdb, across three
+    // replug events in one test), so that string can point at a completely
+    // different physical drive by the time Step 5's Refresh runs - which
+    // then silently excluded a real, healthy destination candidate that
+    // simply happened to inherit the source's old, stale letter. The check
+    // was also always redundant in the intended flow: the source disk is
+    // only ever reachable here after Step 2 mounts it, and
+    // sdcard_scan.sh's own server-side scan already excludes any disk with
+    // a currently-mounted partition - using the live mount state, not a
+    // cached string, so it can never go stale the same way.
     function populateUsbDestinations() {
         var usbSelect = $('#sdcr-usb-target');
         usbSelect.innerHTML = '<option value="">Select a destination USB drive...</option>';
         sdcr.usbDevices.forEach(function (p) {
-            if (p.parent === sdcr.device) return; // never offer the source card itself
             var disk = sdcr.disks[p.parent] || {};
             var opt = document.createElement('option');
             opt.value = p.device;
