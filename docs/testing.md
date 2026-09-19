@@ -1,10 +1,11 @@
 # Testing & Real-Hardware Findings
 
-Every entry below came from testing against a real second FPP SD card
+Most entries below came from testing against a real second FPP SD card
 (`Pi3Test`), read over USB by a second FPP device (`GPIOTest`), with a full
-raw `dd` image taken first so corruption tests were safely reversible. None
-of this was guessed at - each bug was traced back to FPP's own real source
-before being fixed.
+raw `dd` image taken first so corruption tests were safely reversible. A
+few later ones came from fpp-data's own listing review instead. Either
+way, none of this was guessed at - each bug was traced back to FPP's own
+real source before being fixed.
 
 ## Recovering to a second USB drive (real bug found on real hardware)
 
@@ -292,6 +293,62 @@ everything else (name, network, other settings) will already be in place;
 only the privacy consent step is being genuinely re-asked. A note to this
 effect is in the in-app Config warning (`status.php`) so it isn't a
 surprise.
+
+## `api.php` was executed on every FPP API request and failed to load, every time (real bug, found in fpp-data review)
+
+Not a hardware test this time - a manual review comment on the fpp-data
+listing submission, verified against FPP's own real source before fixing,
+same as everything else here.
+
+FPP's `www/api/index.php` calls `addPluginEndpoints()` ->
+`collectPluginEndpoints()` (`www/api/controllers/plugin.php`)
+unconditionally on **every** `/api/*` request - not just requests aimed at
+this plugin, and not gated by which page is open. That function scans
+every installed plugin's directory and, for any that contains a file
+literally named `api.php`, `require_once`s it looking for a
+`getEndpoints<repoName>()` registrar - a real, PHP-only convention,
+distinct from fppd's separate C++ `/plugin-apis/<name>` API this plugin
+had already (correctly) ruled out as inapplicable back in
+[Architecture](architecture.md). The mistake was concluding that ruling
+out the C++ mechanism meant *no* auto-registration mechanism applied - it
+meant only that one didn't. The PHP one applies to any file named
+`api.php`, whether or not it was ever written to be a registrar, and ours
+wasn't: it was page-style code with top-level side effects (reads
+`$_GET['endpoint']`, sets a response code, echoes JSON), meant to be
+`include_once`'d via `plugin.php?page=api.php&nopage=1` the same way
+`stream.php` is. Its `require_once "config.php"` - a bare relative path
+that only resolves against the plugin's own directory when reached that
+specific way - failed to open when FPP core's own scan pulled the file in
+directly instead.
+
+Confirmed live: 10 calls to `/api/system/status` on a device with this
+plugin installed produced 12 new lines in
+`/home/fpp/media/logs/apache2-error.log` - FPP's own log directory,
+included in support zips:
+
+```
+PHP Warning:  require_once(config.php): Failed to open stream ... api.php on line 19
+FPP: skipping plugin API for 'fpp-plugin-SDCardRecover' -- api.php failed to load
+```
+
+`collectPluginEndpoints()` wraps the `require_once` in
+`catch (\Throwable $e)` specifically so one broken plugin's `api.php`
+can't take down the whole API for every other route - confirmed by the
+second log line above matching that catch block's own message verbatim -
+so the plugin's real functionality wasn't affected. The cost was pure log
+noise: FPP's own status page polls `/api/system/status` roughly once a
+second, which works out to on the order of 40 MB/day of warnings logged
+for something this plugin never intended to be reachable that way at all.
+
+Fixed by renaming the file to `ajax.php` (and updating
+`js/sdcard-recover.js`'s two references to it) rather than converting it
+into a real `getEndpoints<repoName>()` registrar - that would mean
+re-routing it under `/api/plugin/fpp-plugin-SDCardRecover/...` instead of
+through `plugin.php`'s page dispatch, a bigger change to an
+already-working, already-tested piece of the plugin for no real benefit
+here. The lesson generalizes: **don't name a plugin file `api.php` unless
+it's actually meant to be a `getEndpoints` registrar** - FPP will find and
+execute it either way.
 
 ## Validated on real hardware
 

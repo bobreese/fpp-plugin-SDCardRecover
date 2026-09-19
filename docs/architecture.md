@@ -65,7 +65,7 @@ a working plugin (`fpp-LoRa`)'s source, rather than guessing:
   `file=...` always ends in `readfile()`, so a `.php` file requested that way
   is served as its own source text, never executed. The only way to run a
   plugin's PHP dynamically is `plugin.php?plugin=<repo>&page=<file>&nopage=1`,
-  which `include_once`s it into the same request - `stream.php`, `api.php`,
+  which `include_once`s it into the same request - `stream.php`, `ajax.php`,
   and the JS that calls them were rewritten around this.
 - **`js`/`css` assets need no manual `<link>`/`<script>` tags at all** -
   `plugin.php` auto-scans the plugin's `js/` and `css/` directories and
@@ -73,14 +73,25 @@ a working plugin (`fpp-LoRa`)'s source, rather than guessing:
   `plugin.php?plugin=<repo>&file=js/<name>&nopage=1`. `status.php`'s manual
   tags (via the nonexistent `pluginBaseURL()`) were redundant on top of being
   broken.
-- **`api.php`'s original `getEndpoints<Plugin>()` self-registration doesn't
-  apply here.** That's a real FPP convention, but for routes served by
-  fppd's own C++ backend and proxied through Apache's `/plugin-apis/<name>`
-  rule (confirmed via `fpp-LoRa`, which calls
-  `fetch('api/plugin-apis/LoRa')`) - a different mechanism requiring backend
-  registration this plugin doesn't have. `api.php` is now a plain
-  `?page=api.php&nopage=1&endpoint=...` dispatcher, consistent with how
-  `stream.php` actually works.
+- **A file literally named `api.php` is not just "a different mechanism
+  that doesn't apply here" - it gets swept into a real one whether you want
+  it to or not.** An earlier version of this doc's own reasoning was wrong
+  about this: it correctly ruled out fppd's C++ `/plugin-apis/<name>` API
+  (proxied to fppd on :32322, requiring backend registration this plugin
+  doesn't have - confirmed via `fpp-LoRa`'s `fetch('api/plugin-apis/LoRa')`)
+  but wrongly treated that as the only alternative mechanism, and concluded
+  a plain `?page=api.php&nopage=1&endpoint=...` dispatcher was therefore
+  safe. It isn't: `www/api/index.php` calls `addPluginEndpoints()` ->
+  `collectPluginEndpoints()` (`controllers/plugin.php`) on **every**
+  `/api/*` request, for every plugin, unconditionally - scanning every
+  installed plugin's directory and `require_once`-ing any file it finds
+  literally named `api.php`, looking for a `getEndpoints<repoName>()`
+  registrar (a real, PHP-only mechanism, distinct from the C++ one). A file
+  with that name gets included this way regardless of whether it was ever
+  written to be a registrar. This plugin's endpoints file is deliberately
+  named `ajax.php` instead, specifically to stay out of that scan - see
+  [Testing & Real-Hardware Findings](testing.md) for the real bug this
+  caused before the rename.
 - **`stream.php`'s `require_once` path was wrong.** It used
   `dirname(__FILE__) . '/../../common.php'`, which resolves two directories
   above the plugin - outside it entirely - and would fatal. Since this file

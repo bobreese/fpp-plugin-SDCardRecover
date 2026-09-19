@@ -4,16 +4,28 @@
  * enough not to need stream.php's StreamURL() treatment.
  *
  * This is invoked the same way stream.php is: only ever reachable as
- * plugin.php?plugin=<repoName>&page=api.php&nopage=1&endpoint=<name>[&...],
+ * plugin.php?plugin=<repoName>&page=ajax.php&nopage=1&endpoint=<name>[&...],
  * which include_once's this file into plugin.php's own request. There is no
- * standalone URL for it and no auto-registration - an earlier version of
- * this file assumed a getEndpoints<Plugin>() convention that auto-mounts
- * routes under /api/plugin/<name>/..., but that turned out to be a different
- * mechanism entirely (fppd's own C++ API, proxied via Apache's
- * /plugin-apis/<name> rule to fppd on :32322 - see e.g. fpp-LoRa's
- * content.php calling fetch('api/plugin-apis/LoRa')). That requires backend
- * C++ registration this plugin doesn't have, so plain ?page=api.php&endpoint=
- * dispatch is what actually works for a pages-only plugin like this one.
+ * standalone URL for it and no auto-registration.
+ *
+ * Deliberately NOT named api.php. FPP core's www/api/index.php calls
+ * addPluginEndpoints() -> collectPluginEndpoints() (controllers/plugin.php)
+ * on every single /api/* request, for every plugin - not just this one, and
+ * not gated by which page you're actually on. It scans every installed
+ * plugin directory and, for any that contains a file literally named
+ * api.php, unconditionally require_once's it looking for a
+ * getEndpoints<repoName>() registrar (a real, PHP-only mechanism, distinct
+ * from fppd's separate C++ /plugin-apis/<name> API). A file named api.php
+ * gets swept into that scan whether or not it was ever written to be a
+ * registrar - ours wasn't, so its top-level require_once "config.php" (a
+ * bare relative path that only resolves correctly when reached via
+ * plugin.php's own page dispatch) failed to open on every single /api/*
+ * call anywhere on the device, logging a warning to apache2-error.log each
+ * time. Confirmed live: 10 calls to /api/system/status produced 12 new
+ * error-log lines, and FPP's own status page polls that endpoint about once
+ * a second - roughly 40 MB/day of log noise from a file this plugin never
+ * intended to be reachable that way at all. Renaming it is the whole fix;
+ * nothing else about how it's invoked changes.
  */
 
 require_once "config.php";

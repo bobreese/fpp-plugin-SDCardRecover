@@ -311,7 +311,7 @@
     }
 
     function runEvaluate() {
-        fetch(sdcrPageUrl('api.php', 'endpoint=evaluate&_=' + Date.now()), { cache: 'no-store' })
+        fetch(sdcrPageUrl('ajax.php', 'endpoint=evaluate&_=' + Date.now()), { cache: 'no-store' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 var el = $('#sdcr-evaluate-result');
@@ -384,7 +384,7 @@
                             var name = m[1].split('/').pop();
                             var link = $('#sdcr-download-link');
                             link.style.display = 'block';
-                            var downloadUrl = sdcrPageUrl('api.php', 'endpoint=' + encodeURIComponent('download/' + name));
+                            var downloadUrl = sdcrPageUrl('ajax.php', 'endpoint=' + encodeURIComponent('download/' + name));
                             link.innerHTML = '<a class="btn btn-primary" href="' + downloadUrl + '">Download ' + name + '</a>';
                         }
                     }

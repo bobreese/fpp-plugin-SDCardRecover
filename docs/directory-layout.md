@@ -7,7 +7,8 @@ status.php              Main 5-step wizard page
 stream.php              Streaming worker (pattern copied from FPP's copystorage.php)
 scripts_dispatch.php    Whitelist: stream.php ?cmd= -> one validated shell script + args,
                         merges stderr and appends a real SDCR_EXITCODE:<n> marker
-api.php                 Small sync JSON endpoints: evaluate, zip download
+ajax.php                Small sync JSON endpoints: evaluate, zip download - NOT named
+                        api.php on purpose, see docs/testing.md
 js/sdcard-recover.js    Wizard controller + streaming log panels
 css/sdcard-recover.css  Step cards, log panes, indeterminate progress bars
 scripts/
