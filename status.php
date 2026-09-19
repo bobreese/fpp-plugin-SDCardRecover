@@ -166,13 +166,15 @@
                             <code>/home/fpp/media/settings</code> (this device's actual
                             HostName, network, and output settings - a separate flat file,
                             not inside <code>config/</code>) to
-                            <code>config.before-recover-&lt;timestamp&gt;</code> and
-                            <code>settings.before-recover-&lt;timestamp&gt;</code> respectively
-                            (exact paths also written to
-                            <code>media/logs/plugin-fpp-plugin-SDCardRecover.log</code>). To restore: stop FPPD,
-                            swap each current file/folder back for its backup, then restart
-                            FPPD (or reboot). This isn't automated - do it over SSH or FPP's
-                            File Manager.
+                            <code>backups/config.before-recover-&lt;timestamp&gt;</code> and
+                            <code>backups/settings.before-recover-&lt;timestamp&gt;</code>
+                            respectively, under FPP's own Backups folder - visible and
+                            downloadable from FPP's File Manager &rarr; Backups tab (exact
+                            paths also written to
+                            <code>media/logs/plugin-fpp-plugin-SDCardRecover.log</code>). To
+                            restore: stop FPPD, swap each current file/folder back for its
+                            backup, then restart FPPD (or reboot). This isn't automated - do
+                            it over SSH or FPP's File Manager.
                         </div>
                         <div class="sdcr-rollback-info">
                             <strong>You may see FPP's Initial Setup wizard again after rebooting.</strong>

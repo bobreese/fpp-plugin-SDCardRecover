@@ -4,10 +4,14 @@
 # plugin directory unconditionally afterward, so there's no signal back to
 # the UI if any of this fails - it has to be correct on its own.
 #
-# Only unmounts the source/destination cards this plugin mounted and clears
-# its own scratch state. Never touches files already restored into real
-# /home/fpp/media/<category>/ directories, a USB drive, or a downloaded
-# zip - those are the operator's files at that point, not this plugin's.
+# Only unmounts the source/destination cards this plugin mounted, removes
+# the now-empty /mnt/DamagedSD and /mnt/SDCardRecoverDest mountpoint
+# directories, and clears its own scratch state. Never touches files
+# already restored into real /home/fpp/media/<category>/ directories
+# (including the pre-recover config/settings/timezone backups this plugin
+# writes to /home/fpp/media/backups/ - FPP's own Backups category, not this
+# plugin's scratch state), a USB drive, or a downloaded zip - those are the
+# operator's files at that point, not this plugin's.
 #
 # FPP's own Uninstall confirmation (www/plugins.php) is a generic dialog
 # with no per-plugin hook - a plugin can't inject a "download it first?"
@@ -23,6 +27,7 @@ for mp in /mnt/DamagedSD /mnt/SDCardRecoverDest; do
     if mountpoint -q "$mp" 2>/dev/null; then
         umount "$mp"
     fi
+    rmdir "$mp" 2>/dev/null || true
 done
 
 STATE_DIR="/home/fpp/media/config/plugin.SDCardRecover"

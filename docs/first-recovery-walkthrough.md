@@ -122,13 +122,13 @@ identity, not just its media:
 ```
 [2026-09-13 09:16:07] === sdcard_recover.sh started: local config,sequences,music,videos,effects,scripts,events,channelmemorymaps,playlists,images,plugins,upload,backups ===
 [2026-09-13 09:16:08] WARNING: config is being restored - this overwrites THIS device's own name, IP (if static), plugin settings, and other core configuration.
-[2026-09-13 09:16:08] Backing up this device's CURRENT config to /home/fpp/media/config.before-recover-20260913-091608 first, in case this wasn't intended.
-[2026-09-13 09:16:08] Backing up this device's CURRENT settings file to /home/fpp/media/settings.before-recover-20260913-091608 first.
+[2026-09-13 09:16:08] Backing up this device's CURRENT config to /home/fpp/media/backups/config.before-recover-20260913-091608 first, in case this wasn't intended.
+[2026-09-13 09:16:08] Backing up this device's CURRENT settings file to /home/fpp/media/backups/settings.before-recover-20260913-091608 first.
 [2026-09-13 09:16:08] Restoring 27 file(s) directly into /home/fpp/media/ (categories: config sequences music videos effects scripts events channelmemorymaps playlists images plugins upload backups)
 [2026-09-13 09:16:23] Done. Restored into /home/fpp/media/ (categories: config sequences music videos effects scripts events channelmemorymaps playlists images plugins upload backups)
 [2026-09-13 09:16:23] Config was overwritten - restart FPPD (or reboot) for the new settings (including HostName/network) to take effect.
-[2026-09-13 09:16:23]   Previous config saved to /home/fpp/media/config.before-recover-20260913-091608
-[2026-09-13 09:16:23]   Previous settings file saved to /home/fpp/media/settings.before-recover-20260913-091608
+[2026-09-13 09:16:23]   Previous config saved to /home/fpp/media/backups/config.before-recover-20260913-091608
+[2026-09-13 09:16:23]   Previous settings file saved to /home/fpp/media/backups/settings.before-recover-20260913-091608
 [2026-09-13 09:16:23] === sdcard_recover.sh finished (exit 0) ===
 ```
 

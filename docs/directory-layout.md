@@ -30,7 +30,8 @@ scripts/
   sdcard_evaluate.sh     Step 4: recoverable size vs. local free space
   sdcard_recover.sh      Step 5: local = category-selective, restores
                          in-place into /home/fpp/media/<category>/ (with
-                         config/settings/timezone backups first if Config is
+                         config/settings/timezone backups first, into FPP's
+                         own media/backups/ category, if Config is
                          included); usb/zip always copy everything verified
   sdcard_unmount.sh      Cleanup
   fpp_install.sh         Plugin Manager install hook: apt-get installs
@@ -39,8 +40,11 @@ scripts/
                          the plugin's own config/plugin.SDCardRecover state dir
   fpp_uninstall.sh       Plugin Manager uninstall hook: unmounts both
                          /mnt/DamagedSD and /mnt/SDCardRecoverDest if still
-                         mounted, clears the plugin's own state dir (manifest
-                         + any zip not yet downloaded) - never touches files
-                         already restored into real media/<category>/
-                         directories, a USB drive, or a downloaded zip
+                         mounted and removes those now-empty mountpoint dirs,
+                         clears the plugin's own state dir (manifest + any
+                         zip/carved output not yet downloaded, rescued to
+                         media/upload/ first) - never touches files already
+                         restored into real media/<category>/ directories
+                         (including the media/backups/ rollback copies), a
+                         USB drive, or a downloaded zip
 ```

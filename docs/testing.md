@@ -659,6 +659,57 @@ Actually wiring deep scan into a first-class recovery path with its own
 destination is tracked as future work, not done here - see item 2 in
 "Not yet validated" below.
 
+## Uninstall left mount points and rollback backups with no visibility (found in fpp-data review)
+
+fpp-data review flagged that uninstall leaves behind `/mnt/DamagedSD`,
+`/mnt/SDCardRecoverDest`, and the `config.before-recover-*` /
+`settings.before-recover-*` / `timezone.before-recover-*` rollback backups
+that `sdcard_recover.sh` writes before overwriting Config - and that the
+backups in particular "aren't visible in File Manager." Worth being
+precise about which part of this was actually a real gap, since an
+earlier fix this round (see "Uninstalling didn't clean up everything..."
+above) already covered mount *unmounting* and scratch-state cleanup, and
+status.php's own rollback warning already claimed the backups were
+reachable from "FPP's File Manager."
+
+Checked both halves against FPP's real source rather than assume either
+way:
+
+- **The backups genuinely weren't visible in File Manager**, and the
+  existing UI text claiming otherwise was wrong. `sdcard_recover.sh` wrote
+  them straight to `/home/fpp/media/config.before-recover-<timestamp>`
+  etc. - the media root itself. Confirmed against FPP core's real
+  `www/config.php` (`GetDirSetting()`) and `www/filemanager.php` that File
+  Manager has no tab that browses the media root directly: the Config tab
+  lists `configDirectory` (`media/config/`, one level down), and there's a
+  real, dedicated **Backups** tab, but it maps to `mediaDirectory .
+  '/backups'` (`media/backups/`) - a different, specific subdirectory, not
+  the root. A file sitting loose in `/home/fpp/media/` isn't covered by
+  either. Fixed by writing these backups to `/home/fpp/media/backups/`
+  instead - FPP's own Backups category - so they now show up for real in
+  File Manager -> Backups, matching what the UI already told users to
+  expect. Updated `status.php`'s rollback text to name the actual
+  `backups/` subpath, and `docs/first-recovery-walkthrough.md`'s log
+  excerpt to match (that walkthrough's log lines get kept in sync with
+  real plugin behavior, same as the log-filename fix earlier this round -
+  it's meant to show what actually appears in the log today, not a frozen
+  historical transcript).
+- **Leaving the two now-unmounted `/mnt/*` directories behind was real but
+  minor** - empty directories outside `/home/fpp/media` entirely, so
+  distinct from the backups issue above and not covered by the earlier
+  uninstall fix (which only ever unmounted them, never removed the
+  directories themselves). Fixed with a plain `rmdir` (best-effort, same
+  as the rest of this script - it already can't signal failure back to the
+  UI) right after each unmount.
+
+What was **not** a bug: keeping the rollback backups around indefinitely
+rather than auto-deleting them is intentional, not an oversight - they're
+the only way to undo a Config restore (see the "Config restore did
+nothing..." and root-device-guard sections above), and this plugin's own
+uninstall already goes out of its way to rescue other undownloaded output
+rather than silently delete it. The actual gap was narrower: *where* they
+were being written, not *whether* they should persist.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:

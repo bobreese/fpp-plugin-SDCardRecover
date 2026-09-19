@@ -101,18 +101,24 @@ case "$DEST_TYPE" in
 
         if [ "$RESTORING_CONFIG" -eq 1 ]; then
             log "WARNING: config is being restored - this overwrites THIS device's own name, IP (if static), plugin settings, and other core configuration."
+            # /home/fpp/media/backups is FPP's own Backups file-manager
+            # category (File Manager -> Backups tab; see GetDirSetting('backups')
+            # in FPP core's www/config.php) - using it instead of dropping these
+            # loose in the media root means they're actually visible/downloadable
+            # there, not just reachable over SSH.
+            mkdir -p /home/fpp/media/backups
             if [ -d /home/fpp/media/config ]; then
-                CONFIG_BACKUP="/home/fpp/media/config.before-recover-$(date +%Y%m%d-%H%M%S)"
+                CONFIG_BACKUP="/home/fpp/media/backups/config.before-recover-$(date +%Y%m%d-%H%M%S)"
                 log "Backing up this device's CURRENT config to $CONFIG_BACKUP first, in case this wasn't intended."
                 cp -a /home/fpp/media/config "$CONFIG_BACKUP"
             fi
             if [ -f /home/fpp/media/settings ]; then
-                SETTINGS_BACKUP="/home/fpp/media/settings.before-recover-$(date +%Y%m%d-%H%M%S)"
+                SETTINGS_BACKUP="/home/fpp/media/backups/settings.before-recover-$(date +%Y%m%d-%H%M%S)"
                 log "Backing up this device's CURRENT settings file to $SETTINGS_BACKUP first."
                 cp -a /home/fpp/media/settings "$SETTINGS_BACKUP"
             fi
             if [ -f /home/fpp/media/timezone ]; then
-                TIMEZONE_BACKUP="/home/fpp/media/timezone.before-recover-$(date +%Y%m%d-%H%M%S)"
+                TIMEZONE_BACKUP="/home/fpp/media/backups/timezone.before-recover-$(date +%Y%m%d-%H%M%S)"
                 cp -a /home/fpp/media/timezone "$TIMEZONE_BACKUP"
             fi
         fi
