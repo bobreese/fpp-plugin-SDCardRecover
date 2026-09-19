@@ -160,8 +160,28 @@
         disks.forEach(function (obj) {
             var row = document.createElement('label');
             row.className = 'sdcr-device-row';
-            row.innerHTML = '<input type="radio" name="sdcr-device" value="' + obj.device + '"> ' +
-                '<strong>' + obj.device + '</strong> - ' + obj.model + ' (' + humanSize(obj.size) + ', ' + obj.tran + ')';
+
+            var radio = document.createElement('input');
+            radio.type = 'radio';
+            radio.name = 'sdcr-device';
+            radio.value = obj.device;
+            row.appendChild(radio);
+
+            // obj.model comes straight from lsblk's MODEL field - the
+            // attached USB device's own self-reported string, not something
+            // this plugin controls. Found in fpp-data review: building this
+            // row with innerHTML meant a crafted device (fake vendor/product
+            // string) could inject markup into this admin page. textContent/
+            // createTextNode never parses their input as HTML, so this is
+            // safe regardless of what a device claims its model is - same
+            // pattern populateUsbDestinations() below already used.
+            var strong = document.createElement('strong');
+            strong.textContent = obj.device;
+            row.appendChild(document.createTextNode(' '));
+            row.appendChild(strong);
+            row.appendChild(document.createTextNode(
+                ' - ' + obj.model + ' (' + humanSize(obj.size) + ', ' + obj.tran + ')'));
+
             list.appendChild(row);
         });
 

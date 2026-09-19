@@ -812,6 +812,41 @@ re-acquire a lock it already holds.
 this specific usage hasn't been exercised on real hardware yet - see item
 5 in "Not yet validated" below.
 
+## `renderDeviceList` built HTML by string concatenation with an attacker-controlled string (found in fpp-data review)
+
+`js/sdcard-recover.js`'s `renderDeviceList()` built each Step 1 device row
+with `row.innerHTML = '<input ...value="' + obj.device + '"> ' + '<strong>'
++ obj.device + '</strong> - ' + obj.model + ' (' + humanSize(obj.size) +
+', ' + obj.tran + ')'`. `obj.model` traces straight back to `lsblk`'s
+`MODEL` field (confirmed in `sdcard_scan.sh`: `"model" => $d["model"] ??
+"Unknown"`, taken directly from `lsblk`'s JSON output) - the USB device's
+own self-reported vendor/product string, not something this plugin or FPP
+controls. A crafted USB device (or a card reader/gadget programmed to
+report one) could set that string to `<img src=x onerror=...>` or similar
+and get it parsed as live HTML the moment its "damaged card" shows up in
+Step 1's list, in the browser of whoever's logged into this FPP's admin
+UI.
+
+Confirmed the fix actually neutralizes it before committing: fed the
+exact payload through the corrected code in a real browser JS engine and
+checked the resulting DOM - no `<img>` element was created; the string
+came back as literal escaped text (`&lt;img src=x
+onerror=alert(1)&gt;`), not a parsed element.
+
+Fixed by building the row with `document.createElement`/`textContent`/
+`document.createTextNode` instead of `innerHTML` - text nodes never parse
+their content as markup, so this is safe regardless of what a device
+claims its model is, without needing to sanitize the string itself.
+Exactly the pattern `populateUsbDestinations()` (the Step 5 destination
+dropdown, a few lines below) already used for the same `model` field -
+this bug was really just an inconsistency between two functions handling
+the same untrusted data differently, not a design gap in the plugin as a
+whole. Checked the file's other four `innerHTML` sites for the same
+pattern: all four (the evaluate-results table, its error message, and the
+zip-download link) only ever embed numbers this plugin computed itself or
+its own generated filenames, not raw external device-reported strings, so
+they were left alone rather than churned for a bug they don't have.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
