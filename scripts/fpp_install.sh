@@ -25,7 +25,7 @@
 # in reality, removed rsync from the box entirely, because this plugin was
 # the only *tracked* claimant FPP knew about - which broke RemoteBackup's
 # ability to pull a backup from that box until rsync was reinstalled by
-# hand. This line just makes sure all four packages exist; it never
+# hand. This step just makes sure all four packages exist; it never
 # un-installs any of them.
 #
 # Package name note: this line used to say "exfat-fsck" instead of
@@ -33,8 +33,25 @@
 # packages.debian.org ("No such package"). set -e meant the bogus name
 # silently aborted this whole script before anything else in it ran, on
 # every install until caught here.
+#
+# Only install what's actually missing - found in fpp-data review, then
+# confirmed live: apt-get install on an already-installed package upgrades
+# it to the latest candidate, and apt-get update is exactly what makes a
+# newer candidate visible in the first place. A real install triggered
+# upgrades of e2fsprogs and its dependents, whose postinst trigger then ran
+# update-initramfs and regenerated /boot/firmware's initramfs images for a
+# kernel version the box didn't even have modules for. A plugin install
+# should never touch the boot path - dropped apt-get update entirely, and
+# every package below is only ever installed if its binary isn't already
+# on PATH, so an already-present package is never touched at all.
 set -e
-apt-get update
-apt-get install -y e2fsprogs dosfstools exfatprogs rsync
+MISSING=()
+command -v fsck.ext4  >/dev/null 2>&1 || MISSING+=("e2fsprogs")
+command -v fsck.vfat  >/dev/null 2>&1 || MISSING+=("dosfstools")
+command -v fsck.exfat >/dev/null 2>&1 || MISSING+=("exfatprogs")
+command -v rsync      >/dev/null 2>&1 || MISSING+=("rsync")
+if [ ${#MISSING[@]} -gt 0 ]; then
+    apt-get install -y "${MISSING[@]}"
+fi
 mkdir -p /home/fpp/media/config/plugin.SDCardRecover
 echo "SDCard Recover plugin installed."

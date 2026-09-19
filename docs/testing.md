@@ -350,6 +350,43 @@ here. The lesson generalizes: **don't name a plugin file `api.php` unless
 it's actually meant to be a `getEndpoints` registrar** - FPP will find and
 execute it either way.
 
+## `fpp_install.sh` upgraded base-system packages and rewrote the boot initramfs (real bug, found in fpp-data review)
+
+Another review comment, confirmed live before fixing. The reasoning
+behind keeping `e2fsprogs`/`dosfstools`/`exfatprogs`/`rsync` off the
+tracked `dependencies.packages` list (see the uninstall/`raspi-firmware`
+section above) was sound - but the *install* side still ran
+`apt-get update && apt-get install -y e2fsprogs dosfstools exfatprogs rsync`
+unconditionally, every single install, regardless of whether those
+packages were already present. That's not a no-op: `apt-get install` on
+an already-installed package upgrades it to the newest available
+candidate, and `apt-get update` immediately beforehand is exactly what
+makes a newer candidate visible in the first place.
+
+Confirmed live via `/var/log/apt/history.log` on a real install:
+
+```
+Upgrade: libext2fs2t64, libcom-err2, comerr-dev, rsync, logsave, libss2, e2fsprogs
+```
+
+`e2fsprogs`'s own postinst trigger then ran `update-initramfs`,
+regenerating `/boot/firmware/initramfs8` and `initramfs_2712` - the actual
+files `auto_initramfs=1` loads at boot - with `W: missing
+/lib/modules/6.18.34+rpt-rpi-v8` (module-less images for a kernel version
+the box didn't even have). A plugin whose entire purpose is recovering
+data from a *second* SD card has no business rewriting the *boot* path of
+the device it's installed on.
+
+Fixed by dropping `apt-get update` entirely and checking
+`command -v fsck.ext4 fsck.vfat fsck.exfat rsync` first, only running
+`apt-get install` for whichever of the four are actually missing - so an
+already-present package is never named in an install command at all, and
+never touched. Small side benefit: `pluginInfo.json`'s own privacy
+declaration for this line already said "if not already present" - before
+this fix that wasn't actually true (it ran unconditionally regardless of
+what the declaration claimed); now the code matches what was already
+being told to the installer.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
