@@ -50,6 +50,7 @@ See [Your First Recovery Session, End to End](first-recovery-walkthrough.md).
    - **A zip file**, downloaded straight to your computer.
 
    Click **Recover** once you've made your choices. Every step along the
-   way is also written to `media/logs/SDCardRecover.log`, viewable and
+   way is also written to
+   `media/logs/plugin-fpp-plugin-SDCardRecover.log`, viewable and
    downloadable from FPP's own File Manager -> Logs tab, not just the live
    log panel on this page.

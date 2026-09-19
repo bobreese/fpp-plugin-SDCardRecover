@@ -20,9 +20,9 @@ without running any destructive repair unless you explicitly ask for it.
   core settings, so including it requires an explicit "I understand"
   confirmation, and this device's current config/settings/timezone are
   always backed up first, regardless of what was confirmed.
-- Every step logs to `media/logs/SDCardRecover.log`, so it shows up
-  automatically in FPP's own File Manager -> Logs tab, not just the live
-  browser stream.
+- Every step logs to `media/logs/plugin-fpp-plugin-SDCardRecover.log`, so
+  it shows up automatically in FPP's own File Manager -> Logs tab, not
+  just the live browser stream.
 
 ## Documentation
 

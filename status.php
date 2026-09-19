@@ -18,7 +18,8 @@
         <strong>SD Card Recover</strong> reads a second, possibly-damaged FPP SD card
         over USB and tries to pull your config and media off it - without running any
         destructive repair unless you explicitly ask for it.
-        Everything below is also written to <code>media/logs/SDCardRecover.log</code>,
+        Everything below is also written to
+        <code>media/logs/plugin-fpp-plugin-SDCardRecover.log</code>,
         viewable/downloadable from FPP's own File Manager &rarr; Logs tab.
     </div>
 
@@ -166,7 +167,7 @@
                             <code>config.before-recover-&lt;timestamp&gt;</code> and
                             <code>settings.before-recover-&lt;timestamp&gt;</code> respectively
                             (exact paths also written to
-                            <code>media/logs/SDCardRecover.log</code>). To restore: stop FPPD,
+                            <code>media/logs/plugin-fpp-plugin-SDCardRecover.log</code>). To restore: stop FPPD,
                             swap each current file/folder back for its backup, then restart
                             FPPD (or reboot). This isn't automated - do it over SSH or FPP's
                             File Manager.

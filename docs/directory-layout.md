@@ -15,8 +15,9 @@ scripts/
   common.sh             Device-name validation (same regex family as FPP core's
                          DriveMountHelper), root-device guard, CATEGORY_RE
                          (the authoritative local-restore category list),
-                         shared paths, and the log()/SDCardRecover.log
-                         plumbing (start/finish trap per script)
+                         shared paths, and the log()/
+                         plugin-fpp-plugin-SDCardRecover.log plumbing
+                         (start/finish trap per script)
   sdcard_scan.sh         Step 1: list removable USB block devices/partitions
                          (skips 0-byte empty card-reader slots)
   sdcard_mount_ro.sh     Step 2: read-only mount attempt -> /mnt/DamagedSD

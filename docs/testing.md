@@ -387,6 +387,36 @@ this fix that wasn't actually true (it ran unconditionally regardless of
 what the declaration claimed); now the code matches what was already
 being told to the installer.
 
+## Log file was named wrong, so it was never rotated (real bug, found in fpp-data review)
+
+Another confirmed review finding. `PLUGIN_GUIDELINES.md` section 1.1 mandates
+exactly one runtime log, named `<logdir>/plugin-<repoName>.log` - for this
+plugin, `plugin-fpp-plugin-SDCardRecover.log`. This plugin's log had
+instead always been named `SDCardRecover.log` (see the mentions of that
+name earlier in this document, from when that really was its name). The
+`plugin-` prefix isn't a style preference - it's the glob FPP's own log
+management uses to rotate plugin logs (by size, keeping the last 2
+copies, compressed) separately from its own. A log that doesn't match
+that glob is invisible to that mechanism and grows without bound for as
+long as the plugin stays installed.
+
+`scripts/common.sh` also hard-coded `/home/fpp/media/logs` as a fallback
+for `$LOGDIR` rather than resolving it the way `PLUGIN_GUIDELINES.md`
+itself recommends: sourcing `${FPPDIR}/scripts/common`, which is what
+actually defines `$LOGDIR` (from `$MEDIADIR`, itself read from
+`${FPPDIR}/www/media_root.txt` when present) rather than guessing at it.
+A hard-coded path silently breaks on a relocated media directory; sourcing
+FPP's own script doesn't.
+
+Fixed by renaming the log to `plugin-fpp-plugin-SDCardRecover.log` and
+replacing the hand-rolled `$LOGDIR` fallback in `scripts/common.sh` with
+`: "${FPPDIR:=/opt/fpp}"; . "${FPPDIR}/scripts/common"`, exactly the
+snippet `PLUGIN_GUIDELINES.md` itself provides for shell scripts. Checked
+FPP's own `scripts/common` for function-name collisions with this
+plugin's own `common.sh` first (none - FPP's are camelCase like
+`ensureLogFile`/`startPluginLog`, this plugin's are snake_case) before
+sourcing the whole file.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:

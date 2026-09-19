@@ -8,9 +8,10 @@ attached over USB. Every log line below is real output from actual testing
 timestamps and device paths will differ on your own run, but the shape of
 the output won't.
 
-Everything here also lands in `media/logs/SDCardRecover.log` as it
-happens, so if you navigate away or lose the page mid-session, that file
-has the full record.
+Everything here also lands in
+`media/logs/plugin-fpp-plugin-SDCardRecover.log` as it happens, so if you
+navigate away or lose the page mid-session, that file has the full
+record.
 
 ## Step 1: Scan
 

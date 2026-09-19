@@ -9,13 +9,20 @@ STATE_DIR="/home/fpp/media/config/plugin.SDCardRecover"
 MANIFEST="$STATE_DIR/manifest.tsv"
 LOCKFILE="/tmp/sdcard-recover.lock"
 
-# FPP's own log directory (www/config.php: $logDirectory = $mediaDirectory . "/logs",
-# exposed to child processes as $LOGDIR). Falls back to the standard default since
-# sudo may not preserve LOGDIR across the privilege boundary. Writing here - named
-# after the plugin - is all that's needed for the file to show up under FPP's own
-# File Manager -> Logs tab; that tab just lists whatever is in this directory.
-LOG_DIR="${LOGDIR:-/home/fpp/media/logs}"
-LOG_FILE="$LOG_DIR/SDCardRecover.log"
+# Log file name and location - PLUGIN_GUIDELINES.md section 1.1: exactly one runtime
+# log, named <logdir>/plugin-<repoName>.log, with <logdir> resolved the
+# FPP-provided way rather than hard-coded, since a relocated media directory
+# would otherwise break it silently. The "plugin-" prefix isn't cosmetic -
+# it's the glob FPP's own log management matches to rotate plugin logs (by
+# size, keeping the last 2 copies, compressed) separately from its own logs;
+# a differently-named file is invisible to that and grows unbounded. Source
+# FPP's own scripts/common for $LOGDIR (and friends) rather than guessing at
+# $mediaDirectory ourselves - the FPPDIR default matches what that script
+# itself expects when sourced from outside $FPPDIR/scripts/.
+: "${FPPDIR:=/opt/fpp}"
+. "${FPPDIR}/scripts/common"
+LOG_DIR="$LOGDIR"
+LOG_FILE="$LOG_DIR/plugin-fpp-plugin-SDCardRecover.log"
 
 # FPP's known removable-device naming: sdX, mmcblkXpY, nvmeXnYpZ.
 # Whole-disk form (no trailing partition number) is also accepted for scan/fsck steps.
