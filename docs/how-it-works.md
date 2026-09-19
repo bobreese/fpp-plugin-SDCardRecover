@@ -24,14 +24,23 @@ See [Your First Recovery Session, End to End](first-recovery-walkthrough.md).
      [Testing & Real-Hardware Findings](testing.md#the-fsck-fallback-ui-could-never-actually-appear-real-bug-real-corruption-test)
      for how this fallback chain was validated on a genuinely corrupted
      card.
-   - **Optional deep scan**: if the filesystem still won't mount, or
-     verification found files the filesystem can no longer locate, a raw
-     signature-based scan (`photorec`) can search the card directly for
-     recognizable file data, independent of the filesystem's health. Slower,
-     and recovered files come back with generic names since there's no
-     directory structure left to recover them from - see
-     [Architecture](architecture.md) for how this is scoped to FPP's own
-     file types.
+   - **Optional deep scan**: offered after a successful mount, if
+     verification found files the filesystem can no longer locate - not
+     currently offered from the failed-mount fallback above, despite the
+     underlying tool not actually needing a working filesystem (see
+     [Testing & Real-Hardware Findings](testing.md#deep-scan-carving-doesnt-do-what-the-docs-claimed-found-in-fpp-data-review)
+     for the exact gap). A raw signature-based scan (`photorec`) searches
+     the card directly for recognizable file data, independent of the
+     filesystem's health. Slower, and recovered files come back with
+     generic names since there's no directory structure left to recover
+     them from - see [Architecture](architecture.md) for how this is
+     scoped to FPP's own file types. Its output isn't wired into Step 5
+     below yet either - retrieve it manually (over SSH or FPP's File
+     Manager) from `config/plugin.SDCardRecover/carved/` before
+     uninstalling. If you don't, uninstall moves any undownloaded output to
+     `media/upload/` instead of deleting it, so it's still recoverable from
+     FPP's File Manager -> Uploads tab afterward - but grabbing it before
+     uninstalling avoids the extra step.
 4. **Evaluate (Step 4).** Click **Evaluate** to compare how much data was
    found recoverable against free space on this device's own local storage,
    before committing to anything.

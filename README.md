@@ -10,9 +10,13 @@ without running any destructive repair unless you explicitly ask for it.
 - fsck is a fallback, not a default: it only runs if the read-only mount
   itself fails, and destructive repair (`fsck -y`) needs its own explicit,
   separately-confirmed action.
-- Two recovery modes: filesystem-level read-verification (fast, needs a
-  mountable partition) and raw signature-based carving via `photorec`
-  (slower, works even when the filesystem won't mount at all).
+- Two recovery modes: filesystem-level read-verification (the main path -
+  fast, needs a mountable partition) and an optional raw signature-based
+  deep scan via `photorec`, offered afterward if verification found files
+  the filesystem could no longer locate. Its output currently has to be
+  retrieved manually (not yet wired into the Recover step or any
+  destination) - see [Testing & Real-Hardware Findings](docs/testing.md)
+  for the exact gap.
 - Three destinations, your choice: restore directly into this device's own
   media folders (category-selective), copy to a second USB drive, or
   download a zip.

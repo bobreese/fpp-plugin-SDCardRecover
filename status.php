@@ -88,8 +88,10 @@
             <div id="sdcr-deepscan-offer" style="display:none;" class="sdcr-deepscan-offer">
                 <p class="sdcr-hint">
                     Want to also try a deep scan (raw signature search) for files the
-                    filesystem can no longer see? This doesn't need a working filesystem,
-                    but can take a long time.
+                    filesystem can no longer see? It searches the card's raw data directly
+                    rather than trusting the filesystem, but can take a long time. Its
+                    output isn't restored automatically in Step 5 below - you'll need to
+                    retrieve it manually afterward (see the plugin's docs).
                 </p>
                 <button type="button" id="sdcr-btn-carve" class="btn btn-secondary">Run deep scan</button>
                 <div class="sdcr-progress" id="sdcr-progress-carve" style="display:none;">

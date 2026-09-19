@@ -1,7 +1,9 @@
 #!/bin/bash
 # Step 5: copy recovered data to one or more destinations the user picked.
-# Only copies files the manifest marked OK (see sdcard_verify.sh), or files
-# produced by sdcard_carve.sh when running off a deep-scan manifest instead.
+# Only copies files the verify manifest marked OK (see sdcard_verify.sh) -
+# sdcard_carve.sh's deep-scan output isn't wired into this step at all; it
+# has no manifest of its own and has to be retrieved separately (see
+# sdcard_carve.sh's own header and docs/testing.md for the gap).
 # Uses rsync (same tool FPP's own Copy Settings / MultiSync pages use) so
 # progress streams the same way the rest of FPP's backup UI already does.
 source "$(dirname "$0")/common.sh"

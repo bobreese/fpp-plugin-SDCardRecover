@@ -582,6 +582,83 @@ Also gave the four bare `class="btn"` buttons (Rescan, "Run fsck -n",
 `btn-primary`/`btn-danger` variants every other button already had -
 Bootstrap only fully themes a button that declares a variant.
 
+## Deep scan-carving doesn't do what the docs claimed (found in fpp-data review)
+
+README.md and docs/how-it-works.md both described the deep scan as a
+second, independent recovery path - implying it could be used whenever the
+filesystem-level path couldn't, including when the partition won't mount
+at all. Checked that claim against the actual code and it doesn't hold up
+on three separate points:
+
+- **The UI never offers it in the "won't mount at all" case.**
+  `js/sdcard-recover.js` only reveals `#sdcr-deepscan-offer` after Step 2's
+  verify summary renders - which requires a successful mount. The fsck
+  fallback branch (mount failed -> `fsck -n` -> optional `fsck -y` -> mount
+  retry) has no code path that shows the deep-scan offer instead. So in
+  practice deep scan is only ever offered *after* a mount already
+  succeeded, as a way to look for files verify's own read-check couldn't
+  locate - not as a fallback for an unmountable card, even though
+  `photorec` itself works directly against the raw block device and
+  genuinely doesn't care whether the filesystem mounts.
+- **Its output was never wired into Step 5 (Recover) at all.** Read both
+  `sdcard_carve.sh` and `sdcard_recover.sh` in full: `sdcard_carve.sh`
+  writes carved files straight into `$OUTDIR`
+  (`config/plugin.SDCardRecover/carved/`) with no manifest, index, or
+  directory structure - `photorec` recovers by raw signature match, so
+  there's no original path information left to record. `sdcard_recover.sh`
+  only ever reads `$MANIFEST` (verify's own output) and copies from a
+  hardcoded `SRC_ROOT="$MOUNTPOINT/home/fpp/media"`; there was never any
+  code path that read from `carved/` at all, let alone one gated on a
+  "deep-scan manifest" - that manifest format doesn't exist and never did.
+  The header comments in both scripts previously implied otherwise.
+- **FPP's File Manager doesn't surface it either**, so "retrieve it
+  yourself" wasn't as easy as it sounded. Confirmed against FPP's actual
+  `www/filemanager.php`: the Config tab lists files via
+  `GetFiles('Config', 'maxdepth=1')`, which never recurses into a
+  plugin-internal subdirectory like `config/plugin.SDCardRecover/carved/`.
+  Retrieval requires SSH or a `plugin.php?plugin=...&file=...` direct
+  download link - never spelled out anywhere in the docs.
+
+None of this is a fabricated feature - deep scan genuinely runs, genuinely
+finds files a damaged filesystem can't, and is genuinely useful. The gap
+is entirely between what the docs promised (a real second recovery path
+with its own destination) and what the code actually does (an
+after-the-fact investigative tool whose output you retrieve by hand).
+Given how much a real fix (wiring `carved/` into Step 5, teaching it to
+tag files with a category the way `sdcard_verify.sh` does, and offering it
+from the failed-mount branch too) would have expanded the scope of an
+already-submitted plugin, chose to correct the documentation to match the
+current, real behavior rather than rush that feature in:
+
+- `README.md`'s "Two recovery modes" bullet now says deep scan is offered
+  only after a successful mount+verify, and that its output currently has
+  to be retrieved manually.
+- `docs/how-it-works.md`'s deep-scan bullet says the same, and no longer
+  implies uninstall silently threw the output away (see below).
+- `scripts/sdcard_carve.sh`'s header comment now says the UI only offers it
+  post-mount, and that its output isn't wired into `sdcard_recover.sh`.
+- `scripts/sdcard_recover.sh`'s header comment no longer claims a
+  deep-scan-manifest code path exists.
+- `status.php`'s deep-scan offer text no longer says "doesn't need a
+  working filesystem" in a spot where the UI never actually offers it
+  without one, and now tells the user up front that Step 5 won't pick the
+  output up automatically.
+
+One real fix landed alongside the doc corrections: `scripts/fpp_uninstall.sh`
+previously `rm -rf`'d the plugin's entire state directory unconditionally,
+which would have silently destroyed any undownloaded carved output (the
+zip-rescue logic added in the earlier uninstall fix only ever looked for
+`*.zip` files, never the `carved/` directory). It now moves a non-empty
+`carved/` directory to `media/upload/SDCardRecover-carved-<timestamp>/`
+before removing the state directory, the same rescue-to-Uploads pattern
+already used for an undownloaded recovery zip - so forgetting to grab deep
+scan output before uninstalling no longer means losing it, even though
+retrieving it before uninstalling is still simpler.
+
+Actually wiring deep scan into a first-class recovery path with its own
+destination is tracked as future work, not done here - see item 2 in
+"Not yet validated" below.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -620,11 +697,16 @@ Confirmed working end-to-end:
    detect. Testing this path properly needs a `dm-flakey`/loopback virtual
    device configured to actually return I/O errors for chosen byte ranges,
    which real SD hardware can't be made to do on demand.
-2. **photorec's `/cmd` micro-syntax is finicky and version-dependent** - the
-   exact extension-whitelist syntax in `sdcard_carve.sh` needs to be tested
-   against the `testdisk` package version FPP actually ships, and may need
-   `partition_order` / `search` flags adjusted. The deep-scan/carving path
-   has not been exercised at all yet.
+2. **Deep scan/carving is a known UI/wiring limitation, not just an
+   untested path.** As documented above, it's only ever offered after a
+   successful mount (never from the failed-mount fallback, despite
+   `photorec` not needing one), and its output isn't wired into Step 5 -
+   it has to be retrieved by hand. On top of that gap, photorec's `/cmd`
+   micro-syntax is finicky and version-dependent: the exact
+   extension-whitelist syntax in `sdcard_carve.sh` still needs to be
+   tested against the `testdisk` package version FPP actually ships, and
+   may need `partition_order` / `search` flags adjusted. The path has not
+   been exercised on real hardware at all yet.
 3. **Sudo/permissions**: every script assumes it's invoked via `sudo` from the
    web server user, matching FPP core's own pattern in `backups.php` - the
    plugin's sudoers entry (if FPP requires one per-plugin) isn't set up here.

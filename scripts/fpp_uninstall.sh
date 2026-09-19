@@ -13,10 +13,10 @@
 # with no per-plugin hook - a plugin can't inject a "download it first?"
 # choice into it, and this script itself already runs non-interactively as
 # root with nothing to prompt on. So instead of asking, any recovery zip that
-# was generated but never downloaded gets moved to media/upload/ - FPP's
-# File Manager already lists and can download anything there (Uploads tab)
-# - rather than being silently deleted along with the rest of the scratch
-# state.
+# was generated but never downloaded, or deep-scan (carved) output that was
+# never retrieved, gets moved to media/upload/ - FPP's File Manager already
+# lists and can download anything there (Uploads tab) - rather than being
+# silently deleted along with the rest of the scratch state.
 source "$(dirname "$0")/common.sh" 2>/dev/null || true
 
 for mp in /mnt/DamagedSD /mnt/SDCardRecoverDest; do
@@ -35,6 +35,14 @@ if [ ${#zips[@]} -gt 0 ]; then
         mv "$z" "$UPLOAD_DIR/$(basename "$z")"
         log "NOTE: undownloaded recovery zip moved to media/upload/$(basename "$z") - grab it from FPP's File Manager -> Uploads tab, then delete it when done."
     done
+fi
+
+CARVED_DIR="$STATE_DIR/carved"
+if [ -d "$CARVED_DIR" ] && [ -n "$(find "$CARVED_DIR" -mindepth 1 -maxdepth 1 2>/dev/null)" ]; then
+    mkdir -p "$UPLOAD_DIR"
+    CARVED_DEST="$UPLOAD_DIR/SDCardRecover-carved-$(date +%Y%m%d-%H%M%S)"
+    mv "$CARVED_DIR" "$CARVED_DEST"
+    log "NOTE: undownloaded deep-scan output moved to media/upload/$(basename "$CARVED_DEST") - grab it from FPP's File Manager -> Uploads tab, then delete it when done."
 fi
 
 rm -rf "$STATE_DIR"
