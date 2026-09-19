@@ -45,6 +45,18 @@ DEVICE_RE='^(sd[a-z][0-9]*|mmcblk[0-9]+p?[0-9]*|nvme[0-9]+n[0-9]+p?[0-9]*)$'
 # archive, already covered inside the config category).
 CATEGORY_RE='^(config|sequences|music|videos|effects|scripts|events|channelmemorymaps|playlists|images|plugins|upload|backups)$'
 
+# Found in fpp-data review: every caller does PART=$(validate_device "$PART"),
+# which runs this function in a command-substitution SUBSHELL - the exit 1
+# calls below only exit that subshell, never the calling script. Confirmed
+# live with /dev/sdz1: the "not a block device" error printed correctly, but
+# the caller then continued with PART empty (lsblk/mount/fsck on "" failed
+# safely rather than silently targeting some OTHER real device, so this was a
+# no-op check rather than a wrong-target risk - still a real bug, not
+# something to leave relying on that luck). exit here is fine on its own
+# (guard_not_root_device, called directly rather than via $(...), doesn't have
+# this problem) - the actual fix has to be at every call site: check the
+# command substitution's own exit status, e.g. `PART=$(validate_device
+# "$PART") || exit 1`, rather than trusting this function's exit to propagate.
 validate_device() {
     local dev="$1"
     local base

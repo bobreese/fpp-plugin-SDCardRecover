@@ -149,7 +149,7 @@ case "$DEST_TYPE" in
         # anywhere. We have to mount it ourselves, read-write, into its own
         # dedicated mountpoint - separate from $MOUNTPOINT, which stays the
         # read-only SOURCE card being recovered FROM.
-        DEST_PART=$(validate_device "$DEST_ARG")
+        DEST_PART=$(validate_device "$DEST_ARG") || { rm -f "$FILELIST"; exit 1; }
         guard_not_root_device "$DEST_PART"
 
         if mountpoint -q "$MOUNTPOINT"; then

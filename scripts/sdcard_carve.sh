@@ -15,7 +15,7 @@ if [ -z "$DEV" ] || [ -z "$OUTDIR" ]; then
     exit 1
 fi
 
-DEV=$(validate_device "$DEV")
+DEV=$(validate_device "$DEV") || exit 1
 guard_not_root_device "$DEV"
 
 if ! command -v photorec >/dev/null 2>&1; then

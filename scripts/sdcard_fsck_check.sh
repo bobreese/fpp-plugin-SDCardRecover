@@ -11,7 +11,7 @@ if [ -z "$PART" ]; then
     exit 1
 fi
 
-PART=$(validate_device "$PART")
+PART=$(validate_device "$PART") || exit 1
 guard_not_root_device "$PART"
 
 if mountpoint -q "$MOUNTPOINT"; then

@@ -506,6 +506,36 @@ else with an already-mounted partition) from the listing itself, using
 mount data `lsblk` already reports - so a live, in-use device is no
 longer even offered as a candidate, not just refused later if picked.
 
+## `validate_device`'s exit 1 couldn't actually stop a script (found in fpp-data review)
+
+A classic bash pitfall, confirmed live before fixing. All five callers do
+`PART=$(validate_device "$PART")` - command substitution, which runs
+`validate_device` in a **subshell**. `exit 1` inside that function only
+exits the subshell; the calling script's own `set -e` (where present)
+never sees a failure, and execution continues right past it with `$PART`
+empty.
+
+Confirmed live with `/dev/sdz1` (a device that doesn't exist):
+`validate_device` correctly printed `"ERROR: /dev/sdz1 is not a block
+device"` - the check itself was never the problem - but the calling
+script then carried on with `PART` empty: `lsblk` ran with an empty
+argument, then `mount -o ro "" /mnt/DamagedSD`. Every downstream command
+failed safely on the empty string rather than silently operating on some
+*other*, real device, so this was a no-op check rather than an actual
+wrong-target risk - but that was luck in what each tool does with `""`,
+not something this plugin ensured. `guard_not_root_device`, called
+directly rather than through `$(...)`, doesn't have this problem at all -
+its `exit` really does end the script, confirmed live refusing a real
+`/dev/nvme0n1p1`.
+
+Fixed at all five call sites (`sdcard_mount_ro.sh`, `sdcard_fsck_check.sh`,
+`sdcard_fsck_repair.sh`, `sdcard_carve.sh`, and `sdcard_recover.sh`'s
+usb-destination case) by checking the command substitution's own exit
+status: `PART=$(validate_device "$PART") || exit 1`. `sdcard_recover.sh`'s
+call site also needed its existing `rm -f "$FILELIST"` cleanup added to
+that same failure path, matching every other early-exit in that script -
+a bare `exit 1` there would have skipped it.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
