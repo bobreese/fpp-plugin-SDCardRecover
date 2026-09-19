@@ -30,7 +30,7 @@
             <span class="sdcr-step-title">Scan for a USB-attached SD card</span>
             <span id="sdcr-no-card-msg" class="sdcr-warn" style="display:none;">Reattach USB SD Card</span>
             <button type="button" id="sdcr-btn-scan" class="btn btn-primary">Scan</button>
-            <button type="button" id="sdcr-btn-rescan" class="btn" style="display:none;">Rescan</button>
+            <button type="button" id="sdcr-btn-rescan" class="btn btn-secondary" style="display:none;">Rescan</button>
         </div>
         <div class="sdcr-step-body">
             <div id="sdcr-device-list" class="sdcr-device-list"></div>
@@ -66,7 +66,7 @@
                     (<code>fsck -n</code>) to see what's wrong? This does not change anything
                     on the card.
                 </p>
-                <button type="button" id="sdcr-btn-fsck-check" class="btn">Run fsck -n (safe, read-only)</button>
+                <button type="button" id="sdcr-btn-fsck-check" class="btn btn-secondary">Run fsck -n (safe, read-only)</button>
                 <pre class="sdcr-log" id="sdcr-log-fsck-check"></pre>
 
                 <div id="sdcr-fsck-repair-offer" style="display:none;">
@@ -91,7 +91,7 @@
                     filesystem can no longer see? This doesn't need a working filesystem,
                     but can take a long time.
                 </p>
-                <button type="button" id="sdcr-btn-carve" class="btn">Run deep scan</button>
+                <button type="button" id="sdcr-btn-carve" class="btn btn-secondary">Run deep scan</button>
                 <div class="sdcr-progress" id="sdcr-progress-carve" style="display:none;">
                     <div class="sdcr-progress-bar"><div class="sdcr-progress-fill"></div></div>
                 </div>
@@ -187,7 +187,7 @@
                 </div>
                 <label><input type="checkbox" name="sdcr-dest" value="usb"> A second attached USB drive (must already have a filesystem on it - this won't format one)
                     <select id="sdcr-usb-target" disabled><option value="">Select a destination USB drive...</option></select>
-                    <button type="button" id="sdcr-btn-refresh-usb" class="btn" title="Rescan for destination drives - use this if you plugged one in after Step 1">Refresh</button>
+                    <button type="button" id="sdcr-btn-refresh-usb" class="btn btn-secondary" title="Rescan for destination drives - use this if you plugged one in after Step 1">Refresh</button>
                 </label>
                 <div class="sdcr-progress" id="sdcr-progress-usb-refresh" style="display:none;"><div class="sdcr-progress-bar"><div class="sdcr-progress-fill"></div></div></div>
                 <pre class="sdcr-log" id="sdcr-log-usb-refresh" style="display:none;"></pre>

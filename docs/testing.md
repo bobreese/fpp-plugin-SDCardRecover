@@ -536,6 +536,52 @@ call site also needed its existing `rm -f "$FILELIST"` cleanup added to
 that same failure path, matching every other early-exit in that script -
 a bare `exit 1` there would have skipped it.
 
+## Hardcoded colors broke FPP's dark theme (found in fpp-data review)
+
+`css/sdcard-recover.css` hardcoded hex colors throughout - some boxes set
+a light background with no explicit text color at all (silently
+inheriting whatever the surrounding theme set), some set dark gray text
+with no background. Both looked fine in FPP's light theme and broke in
+FPP's dark theme: confirmed FPP uses Bootstrap 5.3's real
+`[data-bs-theme="dark"]` mechanism (`www/css/fpp-bootstrap/dist/
+fpp-bootstrap-5-3.css`), plus its own design-system layer on top
+(`www/css/fpp-system-design.css`, dark overrides in `www/css/fpp-dark.css`)
+- a light-background box with no explicit text color would inherit
+dark-mode's light body text on top of a background that never changed,
+and dark gray text with no background would end up low-contrast against
+dark-mode's own dark body background.
+
+Fixed by replacing every hardcoded value with a real FPP/Bootstrap token -
+checked each one actually carries a `[data-bs-theme="dark"]` override
+before using it, rather than assumed:
+
+- `var(--fpp-bg-card)` / `var(--bs-body-color)` for the two boxes that had
+  a hardcoded light background (`.sdcr-intro`, `.sdcr-summary`) - now with
+  an explicit, paired text color instead of an inherited one.
+- `var(--bs-secondary-color)` / `var(--bs-body-color)` for hint/rollback
+  text that had a hardcoded gray with no background (`.sdcr-hint`,
+  `.sdcr-rollback-info`).
+- `var(--bs-warning-text-emphasis)` / `var(--bs-danger-text-emphasis)` -
+  Bootstrap 5.3's own dark-aware "readable colored text on the page
+  background" tokens - for the warning/danger text and the flash-highlight
+  keyframe's `var(--bs-warning-bg-subtle)`.
+- `var(--fpp-border)` / `var(--fpp-bg-disabled)` for borders and the
+  progress-bar track.
+- `var(--bs-primary)` / `var(--bs-success)` for the step-number badge and
+  progress-bar accents, replacing this plugin's own arbitrary custom blue
+  with FPP's actual primary color - Bootstrap deliberately keeps these
+  brand colors identical in both themes, confirmed in the same compiled
+  CSS, so no dark-mode override was needed for them specifically.
+- Left `.sdcr-log` alone on purpose: a terminal-style panel that's always
+  dark in both themes is a deliberate, common convention, not a light-mode
+  box that breaks in dark mode - noted with a comment so it doesn't read
+  as an oversight.
+
+Also gave the four bare `class="btn"` buttons (Rescan, "Run fsck -n",
+"Run deep scan", Refresh) an explicit `btn-secondary`, matching the
+`btn-primary`/`btn-danger` variants every other button already had -
+Bootstrap only fully themes a button that declares a variant.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
