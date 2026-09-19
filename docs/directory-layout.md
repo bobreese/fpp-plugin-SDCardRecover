@@ -1,7 +1,8 @@
 # Directory Layout
 
 ```
-pluginInfo.json         Plugin manifest (name, tracked deps: testdisk/zip, privacy block)
+pluginInfo.json         Plugin manifest (name, tracked deps: testdisk only -
+                        see docs/testing.md for why zip isn't, privacy block)
 menu.inc                Registers the "SD Card Recover" status-page menu entry
 status.php              Main 5-step wizard page
 stream.php              Streaming worker (pattern copied from FPP's copystorage.php)

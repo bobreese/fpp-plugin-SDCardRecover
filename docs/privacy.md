@@ -69,15 +69,17 @@ other `service` entries describe - with the `what` text spelling out the
 irreversibility plainly, per the builder's own guidance to pick the closest
 kind for the color and describe the real behavior in the text.
 
-### Why `e2fsprogs`/`dosfstools`/`exfatprogs`/`rsync` are a `download` entry, not `dependencies.packages`
+### Why `e2fsprogs`/`dosfstools`/`exfatprogs`/`rsync`/`zip` are a `download` entry, not `dependencies.packages`
 
 These are installed by hand in `fpp_install.sh`, deliberately outside
 `pluginInfo.json`'s tracked `dependencies.packages` mechanism - a decision
-that came directly out of two real-hardware incidents
+that came directly out of three real-hardware incidents
 (see `docs/testing.md`) where FPP's reference-counted removal of a
-tracked package took down `raspi-firmware` on one device and broke a
+tracked package took down `raspi-firmware` on one device, broke a
 completely different plugin's (`fpp-plugin-RemoteBackup`) ability to back up
-this one on another. Packages declared in `dependencies.packages` are
+this one on another, and removed `zip` from a box where FPP core itself
+uses it (`www/fppEEPROM.php`) regardless of whether this plugin is
+installed. Packages declared in `dependencies.packages` are
 explicitly exempt from needing their own `download` systemChanges entry per
 `PLUGININFO_FORMAT.md` - but a package installed by a plugin's own script,
 outside that mechanism, doesn't get that exemption, so it's declared here

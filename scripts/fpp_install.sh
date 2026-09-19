@@ -1,12 +1,11 @@
 #!/bin/bash
 # Run once by FPP's Plugin Manager when this plugin is installed.
-# testdisk/zip are handled by pluginInfo.json's own "dependencies" block
-# instead - FPP installs those before this script runs, and tracks this
-# plugin as their requester so they're safely reference-counted for removal
-# on uninstall. Nothing else this plugin needs goes in that tracked list -
-# see below.
+# testdisk is handled by pluginInfo.json's own "dependencies" block instead
+# - FPP installs it before this script runs, and tracks this plugin as its
+# requester so it's safely reference-counted for removal on uninstall.
+# Nothing else this plugin needs goes in that tracked list - see below.
 #
-# e2fsprogs/dosfstools/exfatprogs/rsync all get installed here, by hand,
+# e2fsprogs/dosfstools/exfatprogs/rsync/zip all get installed here, by hand,
 # deliberately OUTSIDE the tracked dependencies mechanism. e2fsprogs and
 # dosfstools are base-system filesystem tools present on virtually every FPP
 # image already (e2fsprogs is even Debian-essential); a real uninstall test
@@ -25,8 +24,18 @@
 # in reality, removed rsync from the box entirely, because this plugin was
 # the only *tracked* claimant FPP knew about - which broke RemoteBackup's
 # ability to pull a backup from that box until rsync was reinstalled by
-# hand. This step just makes sure all four packages exist; it never
+# hand. This step just makes sure all these packages exist; it never
 # un-installs any of them.
+#
+# zip joined the untracked group for the same reason, found in fpp-data
+# review: it was still declared in dependencies.packages, on the theory
+# that it was this plugin's own dependency (it's used for the Step 5 zip
+# download). It isn't exclusively - FPP core itself shells out to zip
+# directly (www/fppEEPROM.php, packaging an EEPROM config as a zip), so a
+# box can easily have it installed already for reasons that have nothing
+# to do with this plugin, exactly like rsync above. Reference-counted
+# removal doesn't know that; observed live, uninstalling this plugin ran
+# `apt-get remove -y zip` even though zip predated this plugin's install.
 #
 # Package name note: this line used to say "exfat-fsck" instead of
 # exfatprogs, which was never a real Debian package - confirmed via
@@ -50,6 +59,7 @@ command -v fsck.ext4  >/dev/null 2>&1 || MISSING+=("e2fsprogs")
 command -v fsck.vfat  >/dev/null 2>&1 || MISSING+=("dosfstools")
 command -v fsck.exfat >/dev/null 2>&1 || MISSING+=("exfatprogs")
 command -v rsync      >/dev/null 2>&1 || MISSING+=("rsync")
+command -v zip        >/dev/null 2>&1 || MISSING+=("zip")
 if [ ${#MISSING[@]} -gt 0 ]; then
     apt-get install -y "${MISSING[@]}"
 fi

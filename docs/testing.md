@@ -710,6 +710,39 @@ uninstall already goes out of its way to rescue other undownloaded output
 rather than silently delete it. The actual gap was narrower: *where* they
 were being written, not *whether* they should persist.
 
+## `zip` stayed tracked in `dependencies.packages`, and FPP core uses it too (found in fpp-data review)
+
+`zip` was one of the two packages left in `pluginInfo.json`'s tracked
+`dependencies.packages` (alongside `testdisk`), on the theory that it was
+genuinely this plugin's own dependency - it's used for the Step 5 zip
+download. fpp-data review pointed out this was exactly the `rsync` story
+above, repeated: observed live, `zip` was already installed on a box
+*before* this plugin was, and FPP's reference-counted removal still ran
+`apt-get remove -y zip` on uninstall anyway, because this plugin was the
+only *tracked* claimant FPP knew about - the same "correct per FPP's own
+logic, wrong in reality" failure mode, just not yet caught breaking
+anything specific the way `rsync` broke `fpp-plugin-RemoteBackup`.
+
+The review also cited FPP core's own `www/fppEEPROM.php` (~line 157):
+`system("(cd $source && zip -9r - ./) > $tempfile")` when packaging an
+EEPROM config for download. Confirmed directly - FPP core shells out to
+`zip` itself, unconditionally, with nothing installing it for that purpose
+that would register as a claimant in `dependencies.packages`. So `zip`
+is realistically pre-installed on most real FPP images already, for
+reasons that have nothing to do with this plugin - the same situation
+`rsync` was in, just not caught on the same test box.
+
+As the reviewer noted, the deeper issue (FPP's reference counting has no
+way to know a package pre-existed before a plugin's install, so it always
+removes it as though it didn't) is FPP core's problem, not something a
+plugin manifest can fix. Applied the same workaround already in place for
+`e2fsprogs`/`dosfstools`/`exfatprogs`/`rsync`: moved `zip` out of
+`dependencies.packages` and into `fpp_install.sh`'s untracked,
+install-if-missing block (`command -v zip || MISSING+=("zip")`), and added
+it to the existing `download` `systemChanges` entry. `testdisk` stays
+tracked - nothing found suggests FPP core or another plugin uses it, so
+reference-counted removal is the correct behavior for it specifically.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:

@@ -19,7 +19,7 @@
     ],
     "dependencies": {
         "plugins": [],
-        "packages": ["testdisk", "zip"],
+        "packages": ["testdisk"],
         "python": [],
         "scripts": []
     },
@@ -48,7 +48,7 @@
             },
             {
                 "kind": "download",
-                "what": "Installs e2fsprogs, dosfstools, exfatprogs, and rsync via apt-get if not already present."
+                "what": "Installs e2fsprogs, dosfstools, exfatprogs, rsync, and zip via apt-get if not already present."
             },
             {
                 "kind": "core-settings",
