@@ -91,7 +91,10 @@
                     filesystem can no longer see? It searches the card's raw data directly
                     rather than trusting the filesystem, but can take a long time. Its
                     output isn't restored automatically in Step 5 below - you'll need to
-                    retrieve it manually afterward (see the plugin's docs).
+                    retrieve it manually afterward (see the plugin's docs). It can recover
+                    photos, video, and audio this way - but not FSEQ sequence files or
+                    JSON config files, since neither has a fixed signature this kind of
+                    scan can recognize.
                 </p>
                 <button type="button" id="sdcr-btn-carve" class="btn btn-secondary">Run deep scan</button>
                 <div class="sdcr-progress" id="sdcr-progress-carve" style="display:none;">

@@ -13,7 +13,10 @@ without running any destructive repair unless you explicitly ask for it.
 - Two recovery modes: filesystem-level read-verification (the main path -
   fast, needs a mountable partition) and an optional raw signature-based
   deep scan via `photorec`, offered afterward if verification found files
-  the filesystem could no longer locate. Its output currently has to be
+  the filesystem could no longer locate. It can recover photos, video, and
+  audio this way, but not FSEQ sequences or JSON config files - neither
+  has a signature a generic carving tool can recognize, a real limitation
+  of this recovery mode, not a bug. Its output currently has to be
   retrieved manually (not yet wired into the Recover step or any
   destination) - see [Testing & Real-Hardware Findings](docs/testing.md)
   for the exact gap.

@@ -1460,6 +1460,79 @@ caching concept applies to them - so a log showing new behavior while the
 page's own rendering doesn't is close to a decisive tell that this is
 what's going on, not a real regression.
 
+## photorec's `fileopt` extension list silently disabled every real file type (real bug, real hardware)
+
+The first real end-to-end test of deep scan/carving, on the same
+directory-corruption test that surfaced the `DIRS_WITH_ERRORS` finding
+above: `sdcard_carve.sh`'s `photorec` invocation completed in under a
+second and carved 0 files - on a card whose actual file data was still
+physically present (only a directory's own entries had been corrupted,
+not the file content). No `photorec.log` was ever written despite `/log`
+being passed. That combination - near-instant completion, zero output,
+no log file - is the signature of a rejected command string, not a
+genuine "found nothing" scan.
+
+Traced directly against photorec's own source
+(`cgsecurity/testdisk`, `src/phcli.c` and the `src/file_*.c` modules,
+not just the man page) rather than guessed at. The `/cmd` invocation was:
+
+```
+fileopt,everything,disable,fseq,enable,mp3,enable,wav,enable,mp4,enable,avi,enable,mov,enable,jpg,enable,png,enable,json,enable,search
+```
+
+`fseq` and `json` were never real photorec-recognized extensions -
+confirmed by the absence of any `src/file_fseq.c` or `src/file_json.c`
+in photorec's ~350-module file-type registry. FPP's own sequence format
+has no public signature a generic tool would know, and plain JSON has no
+fixed magic bytes to key off of at all. That alone would just mean those
+two types get skipped - except `phcli.c`'s `file_select_cli()` (the
+function that parses the `fileopt,...` command list) stops consuming
+tokens the instant it hits one it does not recognize, rather than
+skipping just that one and continuing. `fseq` was the very first token
+after `everything,disable`, so it silently aborted the **entire rest of
+the list** - `enable,mp3`, `enable,wav`, every subsequent `enable,X`
+never ran at all. The net configuration actually sent to photorec's scan
+engine was "disable everything, enable nothing" - a scan with zero file
+signatures loaded to search for, which explains the sub-second runtime
+and the complete absence of a log file (nothing to log).
+
+Two more of the original tokens were subtly wrong in a different way,
+confirmed by reading each module's own registration rather than assuming
+the extension name matches the option name: `wav` and `avi` are not
+their own extensions either - both are RIFF containers, handled under
+photorec's single `riff` hint (`src/file_riff.c`:
+`"RIFF audio/video: wav, cdr, avi"`). `mp4` is likewise folded into the
+`mov` hint (`src/file_mov.c`: `"mov/mp4/3gp/3g2/jp2"`) - a recovered MP4
+comes back named with a `.mov` extension regardless, since photorec has
+no way to tell the two apart from the container format alone. Those
+would have caused the exact same total-command-abort failure had `fseq`
+not already triggered it first.
+
+Fixed the `/cmd` string itself:
+
+```
+fileopt,everything,disable,mp3,enable,riff,enable,mov,enable,jpg,enable,png,enable,search
+```
+
+Every token in this list was individually confirmed against a real
+`src/file_*.c` registration before being included. This makes deep scan
+actually search for something for the first time - `mp3`, `riff`
+(wav/avi/cdr), `mov` (mov/mp4/3gp/3g2/jp2), `jpg`, and `png` - instead of
+silently scanning for nothing while reporting a false "0 found" as if
+that were a real result.
+
+**What this does not and cannot fix**: `fseq` and `json` are not merely
+misspelled or misordered - there is no photorec extension that covers
+either, because signature-based carving fundamentally requires a fixed
+byte pattern to search for, and neither FPP's own sequence format nor
+generic JSON has one. This means deep scan/carving, as a whole approach,
+cannot recover FSEQ show sequences or JSON config files under any
+`/cmd` syntax - arguably the two categories of file an operator would
+most want back. Updated `status.php`'s deep-scan offer text,
+`README.md`, and `docs/how-it-works.md` to say this plainly rather than
+implying deep scan covers "FPP's own file types" in general, which it
+never fully did.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1563,11 +1636,16 @@ Confirmed working end-to-end:
     scan produced through both the stdout and logging paths, but a fresh
     scan run for real on the Pi, followed by actually downloading the log
     bundle and confirming the device list is there, has not been done yet.
-12. **The deep-scan offer actually rendering from the `DIRS_WITH_ERRORS`
-    fix** (see "A corrupted directory's files vanished from the count
-    instead of showing as unreadable..." above) - the bash-side fix
-    (the `WARNING` line and the new summary clause) is now confirmed on
-    the real hardware that surfaced this bug. The one piece still open is
-    the UI side specifically: that `#sdcr-deepscan-offer` actually becomes
-    visible in the browser from this real output, not just that the log
-    text and JS regex are correct in isolation.
+12. ~~The deep-scan offer actually rendering from the `DIRS_WITH_ERRORS`
+    fix~~ - **confirmed** on the real hardware that surfaced the bug: after
+    a hard refresh (see the stale-JS testing gotcha above), the offer
+    rendered and "Run deep scan" ran successfully, which is what surfaced
+    the next finding below.
+13. **The fixed `fileopt` extension list in `sdcard_carve.sh`** (see
+    "photorec's `fileopt` extension list silently disabled every real
+    file type..." above) - each token was individually confirmed against
+    photorec's real source, but an actual carve run with the corrected
+    command line, against real jpg/mp3/mov/png/riff test data deliberately
+    placed on a card, confirming files actually come back this time, has
+    not been done yet - only the previous, broken configuration has
+    actually been run on real hardware so far.

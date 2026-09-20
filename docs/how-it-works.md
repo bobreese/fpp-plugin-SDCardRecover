@@ -31,12 +31,18 @@ See [Your First Recovery Session, End to End](first-recovery-walkthrough.md).
      [Testing & Real-Hardware Findings](testing.md#deep-scan-carving-doesnt-do-what-the-docs-claimed-found-in-fpp-data-review)
      for the exact gap). A raw signature-based scan (`photorec`) searches
      the card directly for recognizable file data, independent of the
-     filesystem's health. Slower, and recovered files come back with
-     generic names since there's no directory structure left to recover
-     them from - see [Architecture](architecture.md) for how this is
-     scoped to FPP's own file types. Its output isn't wired into Step 5
-     below yet either - retrieve it manually (over SSH or FPP's File
-     Manager) from `config/plugin.SDCardRecover/carved/` before
+     filesystem's health - but only for formats it has a known signature
+     for: photos, video, and audio, not **FSEQ sequence files or JSON
+     config files**, since neither has fixed magic bytes a generic
+     carving tool can recognize (see
+     [Testing & Real-Hardware Findings](testing.md#photorecs-fileopt-extension-list-silently-disabled-every-real-file-type-real-bug-real-hardware)
+     for how this was confirmed against photorec's own source, and why
+     it's a real, permanent limitation rather than a configuration
+     mistake). Slower, and recovered files come back with generic names
+     since there's no directory structure left to recover them from. Its
+     output isn't wired into Step 5 below yet either - retrieve it
+     manually (over SSH or FPP's File Manager) from
+     `config/plugin.SDCardRecover/carved/` before
      uninstalling. If you don't, uninstall moves any undownloaded output to
      `media/upload/` instead of deleting it, so it's still recoverable from
      FPP's File Manager -> Uploads tab afterward - but grabbing it before
