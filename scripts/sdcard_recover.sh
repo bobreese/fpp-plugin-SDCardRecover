@@ -175,6 +175,21 @@ case "$DEST_TYPE" in
                 rm -f "$FILELIST"
                 exit 1
             fi
+            # Found in fpp-data review: the check above only ever caught the
+            # exact mounted partition - a SIBLING partition on the same
+            # physical card (its boot/vfat partition, e.g. /dev/sda1 when
+            # /dev/sda2 is what's mounted) passed it, passed
+            # guard_not_root_device() too (that function only refuses a
+            # partition mounted somewhere else; an unmounted sibling trips
+            # nothing), and would have been mounted read-write and written
+            # to - the same card this whole plugin exists to read safely.
+            SRC_DISK=$(source_device)
+            DEST_DISK="/dev/$(basename "$DEST_PART" | sed -E 's/p?[0-9]+$//')"
+            if [ -n "$SRC_DISK" ] && [ "$DEST_DISK" = "$SRC_DISK" ]; then
+                echo "ERROR: destination $DEST_PART is a sibling partition on the same physical card ($SRC_DISK) as the source mounted at $MOUNTPOINT. Refusing to write to the card being recovered." >&2
+                rm -f "$FILELIST"
+                exit 1
+            fi
         fi
 
         mkdir -p "$DEST_MOUNTPOINT"

@@ -87,6 +87,22 @@ media_device() {
     findmnt -n -o SOURCE --target /home/fpp/media 2>/dev/null | sed -E 's/p?[0-9]+$//'
 }
 
+# The whole disk currently backing the read-only source mount at $MOUNTPOINT,
+# or empty if nothing is mounted there. Found in fpp-data review: the usb
+# destination check in sdcard_recover.sh only ever compared against the
+# exact partition mounted at $MOUNTPOINT, so a SIBLING partition on the same
+# physical card (e.g. its boot/vfat partition, never itself mounted by this
+# plugin) passed that check, passed guard_not_root_device() too (its own
+# per-partition loop only catches a partition mounted somewhere OTHER than
+# $MOUNTPOINT/$DEST_MOUNTPOINT - a partition that is not mounted at all,
+# like a sibling boot partition, never trips it), and got mounted read-write
+# and written to - defeating the read-only guarantee on the very card being
+# recovered. blockdev --setro (see sdcard_mount_ro.sh) only protects the one
+# partition actually passed to it, never its siblings.
+source_device() {
+    findmnt -n -o SOURCE "$MOUNTPOINT" 2>/dev/null | sed -E 's/p?[0-9]+$//'
+}
+
 # Refuse to ever touch a device FPP itself is booted from, that's backing FPP's
 # own media directory (which can be a separate storage device - see
 # media_device() above), or that has a partition mounted somewhere this plugin

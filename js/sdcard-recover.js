@@ -223,6 +223,15 @@
         });
     }
 
+    // Given a partition path like /dev/sda2 or /dev/mmcblk0p2, returns its
+    // parent disk (/dev/sda, /dev/mmcblk0) - same regex family as
+    // common.sh's root_device()/media_device() (`sed -E 's/p?[0-9]+$//'`),
+    // kept in sync deliberately since both sides need to agree on what
+    // "the same physical disk" means.
+    function diskOf(partitionPath) {
+        return partitionPath.replace(/p?\d+$/, '');
+    }
+
     // Lists partitions belonging to disks OTHER than the chosen source card,
     // as raw device paths (e.g. /dev/sdb1) - NOT by which ones scan happened
     // to see already mounted. FPP has no automount daemon, so a freshly
@@ -231,25 +240,31 @@
     // previously found nothing for a real second drive but could offer back
     // the source card's own (read-only) mount as if it were a destination.
     //
-    // Real bug, found on real hardware and removed: this used to also skip
-    // any partition whose parent matched `sdcr.device` - a plain device-path
-    // string ("/dev/sda") captured once, at Step 1 selection, and never
-    // updated. Linux reuses device letters across a session as USB drives
-    // get unplugged/replugged (confirmed live: the same physical stick
-    // enumerated as /dev/sda, then later /dev/sdb, across three
-    // replug events in one test), so that string can point at a completely
-    // different physical drive by the time Step 5's Refresh runs - which
-    // then silently excluded a real, healthy destination candidate that
-    // simply happened to inherit the source's old, stale letter. The check
-    // was also always redundant in the intended flow: the source disk is
-    // only ever reachable here after Step 2 mounts it, and
-    // sdcard_scan.sh's own server-side scan already excludes any disk with
-    // a currently-mounted partition - using the live mount state, not a
-    // cached string, so it can never go stale the same way.
+    // A prior version of this function excluded the source disk by comparing
+    // against `sdcr.device` and was removed here after that comparison went
+    // stale across a device-letter reuse (see git history) - but removing it
+    // outright was itself wrong, found in a follow-up review: this function
+    // also runs at Step 1 radio-select time (see below), before anything is
+    // mounted, straight from scan data that still lists the source disk's
+    // OWN partitions (nothing excludes them server-side yet, since
+    // sdcard_scan.sh only excludes a disk once one of its partitions is
+    // actually mounted). Without any client-side filter, the source card's
+    // sibling partition (e.g. its untouched boot partition) sat in this
+    // dropdown with the same model string as the card itself, and - the
+    // more serious half - the server accepted it: sdcard_recover.sh's own
+    // check only ever compared against the exact partition mounted at
+    // $MOUNTPOINT, not its siblings (fixed separately there). Restored the
+    // filter here too, but keyed on the freshest identity available -
+    // `sdcr.partition` (the actual mounted partition, set by runMount())
+    // once it exists, falling back to `sdcr.device` (fresh as of the same
+    // Step 1 click that calls this) before that - rather than reintroducing
+    // the original staleness risk.
     function populateUsbDestinations() {
         var usbSelect = $('#sdcr-usb-target');
         usbSelect.innerHTML = '<option value="">Select a destination USB drive...</option>';
+        var sourceDisk = sdcr.partition ? diskOf(sdcr.partition) : sdcr.device;
         sdcr.usbDevices.forEach(function (p) {
+            if (sourceDisk && p.parent === sourceDisk) return; // never offer a sibling partition of the source card
             var disk = sdcr.disks[p.parent] || {};
             var opt = document.createElement('option');
             opt.value = p.device;
@@ -369,6 +384,16 @@
                     '<tr><td>Fits on local storage?</td><td>' + (data.fitsLocally ? 'Yes' : 'No - consider USB or zip instead') + '</td></tr>' +
                     '</table>';
                 enableStep($('#sdcr-step-recover'));
+                // Found in fpp-data review, alongside the sibling-partition
+                // fix above: Step 5's destination list was otherwise still
+                // whatever Step 1's scan saw, which is stale by the time
+                // this step unlocks (a destination drive plugged in during
+                // Steps 2-4 would not show up until the user thought to
+                // click Refresh themselves). A fresh scan here also
+                // benefits from the source card now actually being mounted,
+                // so sdcard_scan.sh's own server-side exclusion of the
+                // source disk applies on top of the client-side filter.
+                refreshUsbDestinations();
                 if (!data.fitsLocally) {
                     $('input[name="sdcr-dest"][value="local"]').disabled = true;
                 }

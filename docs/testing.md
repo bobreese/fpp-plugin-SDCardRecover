@@ -1124,6 +1124,73 @@ partition now sitting at that same letter after a replug) in a real
 browser JS engine - the old code left the dropdown empty except for the
 placeholder, the fixed code correctly listed the destination.
 
+## The source card's own sibling partition could be picked as a USB destination and written to (found in fpp-data review)
+
+A follow-up review on the previous fix caught a real regression it
+introduced: removing the stale `sdcr.device` check from
+`populateUsbDestinations()` (commit `88f8d34`) was justified there as safe
+because "the source disk is only reachable here after Step 2 mounts it,
+and the server already excludes a mounted disk" - true for the **Refresh**
+path, but wrong for a second call site to the same function:
+`populateUsbDestinations()` also runs immediately at Step 1's radio-select
+(`js/sdcard-recover.js`, right where `sdcr.device` is set), straight from
+the Step 1 scan's data - which still includes the source disk's own
+partitions, since nothing is mounted yet and `sdcard_scan.sh` has no
+reason to exclude it at that point. Without any client-side filter, the
+source card's sibling partition (its untouched boot partition, say
+`/dev/sda1`, sitting next to the `/dev/sda2` about to be mounted
+read-only) landed in the Step 5 destination dropdown under the same model
+string as the card itself.
+
+The more serious half: the server accepted it too. `sdcard_recover.sh`'s
+`usb` branch only ever compared the chosen destination against
+`findmnt -n -o SOURCE "$MOUNTPOINT"` - the exact mounted partition, not
+its siblings. `guard_not_root_device()` (`common.sh`) didn't catch it
+either: its per-partition loop only refuses a partition mounted somewhere
+*other than* `$MOUNTPOINT`/`$DEST_MOUNTPOINT` - an unmounted sibling like
+`/dev/sda1` trips nothing, since it isn't mounted anywhere at all. And
+`blockdev --setro` (the read-only guarantee from an earlier finding) only
+ever covers the one partition actually passed to `sdcard_mount_ro.sh` -
+never a sibling that was never mounted. Picking that sibling as a `usb`
+destination would have mounted it read-write and rsynced files onto it -
+writing to the very card this entire plugin exists to read safely,
+exactly the outcome the read-only mount, `blockdev --setro`, and the
+existing exact-partition check were all meant to prevent, just from a
+partition none of them were looking at.
+
+Fixed on both sides, matching the reviewer's own framing of it as a
+two-layer gap:
+
+- **Server-side (the real enforcement boundary):** added `source_device()`
+  to `common.sh` - the same `sed -E 's/p?[0-9]+$//'` pattern
+  `root_device()`/`media_device()` already use, resolving the whole disk
+  backing `$MOUNTPOINT` - and extended `sdcard_recover.sh`'s existing
+  exact-partition check with a second one: refuse `DEST_PART` if its own
+  parent disk matches the source's, not just if it's the identical
+  partition. This is the check that actually matters - a client-side bug
+  or a hand-crafted request bypasses the dropdown entirely, but not this.
+- **Client-side (defense in depth + the dropdown itself being correct):**
+  restored a filter in `populateUsbDestinations()`, keyed on the freshest
+  identity available - `sdcr.partition`'s own parent disk (via a new
+  `diskOf()` helper, the same regex family as the bash side) once Mount
+  has run, falling back to `sdcr.device` before that - rather than
+  reintroducing the original staleness bug the prior fix was solving.
+  Also made Step 5's destination list re-scan automatically the moment it
+  unlocks (`runEvaluate()`'s success handler now calls
+  `refreshUsbDestinations()`), so a destination plugged in during Steps
+  2-4 shows up without the user needing to remember to click Refresh, and
+  the list reflects the source's now-actually-mounted state rather than
+  Step 1's stale snapshot.
+
+Verified both fixes before committing: the bash `sed` pattern against
+`/dev/sda2`, `/dev/mmcblk0p2`, and `/dev/nvme0n1p1` (all three real naming
+schemes this plugin's own `DEVICE_RE` accepts) all correctly resolved to
+their parent disk; and the JS fix against three scenarios in a real
+browser engine - Step 1 selection time (both source siblings correctly
+excluded, unrelated destination shown), post-Mount (same, via
+`sdcr.partition`), and a plain unrelated destination with no source disk
+in play (still shown, no false-positive regression).
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1201,3 +1268,11 @@ Confirmed working end-to-end:
    churn, but the actual next real-hardware retest (reformatted stick,
    deliberately replugged mid-session, Refresh clicked at Step 5) has not
    happened yet.
+8. **The sibling-partition destination guard** (`source_device()` in
+   `common.sh`, the new check in `sdcard_recover.sh`, and the restored
+   client-side filter - see "The source card's own sibling partition..."
+   above) - the disk-derivation regex and the JS filter logic were both
+   verified directly, but actually selecting a source card's own sibling
+   partition as a destination on real hardware and confirming the refusal
+   fires (rather than just trusting the synthetic/direct verification)
+   has not been done yet.
