@@ -201,13 +201,24 @@ log_file_only() {
 # (the fd just closes), so no separate cleanup is needed - confirmed no
 # script here ever invokes another one as a subprocess (each is dispatched
 # independently by scripts_dispatch.php), so there's no self-nesting risk.
+# ensure_log_file()/log() need to exist BEFORE the lock attempt below, not
+# after - found from a real user report: a Delete click that hit lock
+# contention correctly refused to run and said so on the stream (the echo
+# below), but nothing about it ever reached
+# plugin-fpp-plugin-SDCardRecover.log, the one place this plugin promises
+# every step goes to (README.md/how-it-works.md) - because the lock used
+# to be checked before ensure_log_file()/the first log() call existed at
+# all, so a failure here had nowhere to log() itself TO yet. Safe to move
+# earlier: LOG_DIR/LOG_FILE come from FPP's own sourced scripts/common a
+# few lines up, nothing the lock itself protects.
+ensure_log_file
+SDCR_SCRIPT_NAME=$(basename "$0")
+
 exec {SDCR_LOCK_FD}>"$LOCKFILE"
 if ! flock -n "$SDCR_LOCK_FD"; then
-    echo "ERROR: another SDCard Recover operation is already running (in this tab, another tab, or another user's session) - wait for it to finish, then retry." >&2
+    log "ERROR: $SDCR_SCRIPT_NAME could not start - another SDCard Recover operation is already running (in this tab, another tab, or another user's session) - wait for it to finish, then retry."
     exit 1
 fi
 
-ensure_log_file
-SDCR_SCRIPT_NAME=$(basename "$0")
 log "=== $SDCR_SCRIPT_NAME started: $* ==="
 trap 'log "=== $SDCR_SCRIPT_NAME finished (exit $?) ==="' EXIT

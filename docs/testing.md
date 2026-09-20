@@ -1828,6 +1828,90 @@ doesn't drift back.
 source-confirmed mechanism, but hasn't been re-run against real hardware
 yet to confirm `apache2-error.log` actually goes quiet.
 
+## A failed artifact delete left no trace anywhere a user would think to look (real bug, found from a real user report)
+
+A real user clicked Delete on a leftover recovery zip in the Recovery
+Artifacts section on `GPIOTest`. The zip was still on disk afterward
+(confirmed via `ls -la` on the box), and - the detail that actually
+pinned this down - `plugin-fpp-plugin-SDCardRecover.log` had no record of
+the attempt at all, not even a failed one.
+
+That second fact ruled out the two obvious suspects quickly: the
+artifact-name allowlist regex (`^(SDCardRecover-[0-9]{8}-[0-9]{6}\.zip|carved(\.[0-9]+)?)$`,
+checked in both `scripts_dispatch.php` and `sdcard_delete_artifact.sh`
+itself) matches the real filename correctly (verified directly against
+the exact string), and a rejection there would still reach
+`sdcard_delete_artifact.sh`'s own `log "Deleting artifact ..."` line if
+the script itself had started at all. "No trace whatsoever" pointed
+somewhere the log couldn't reach in the first place, and `common.sh` had
+exactly one such place:
+
+```bash
+exec {SDCR_LOCK_FD}>"$LOCKFILE"
+if ! flock -n "$SDCR_LOCK_FD"; then
+    echo "ERROR: another SDCard Recover operation is already running ..." >&2
+    exit 1
+fi
+
+ensure_log_file
+SDCR_SCRIPT_NAME=$(basename "$0")
+log "=== $SDCR_SCRIPT_NAME started: $* ==="
+```
+
+The global `flock` lock (added earlier this round so two tabs/sessions
+can't race each other - see "`LOCKFILE` was declared and never used"
+above) is checked **before** `ensure_log_file()`/the first `log()` call
+exists at all. Any script that loses that lock race prints its refusal to
+stderr (still visible live in the browser's own log panel, merged into
+the response by `scripts_dispatch.php`'s `2>&1`) and exits - without ever
+reaching the one place this plugin promises every step goes to
+(`README.md`/`docs/how-it-works.md`: "Every step logs to
+`media/logs/plugin-fpp-plugin-SDCardRecover.log`"). This isn't specific
+to `delete_artifact` - any script that loses the lock has the same gap -
+delete just happened to be the one a real user hit it through.
+
+A second, compounding bug made this fully invisible instead of just
+under-logged. `js/sdcard-recover.js`'s delete button ignored
+`streamCommand`'s own `(ok, text)` result entirely - the same result
+`mount_ro`/`verify`/`fsck_check` all already branch on:
+
+```js
+streamCommand('delete_artifact', { name: item.name }, 'sdcr-log-artifacts', null, function () {
+    refreshArtifacts();
+});
+```
+
+So even with the lock-contention error correctly streamed to the
+browser, the UI took no notice of it - it just re-fetched and redrew the
+(unchanged) artifact list, which looks identical to "there was nothing to
+delete." No error, no stuck button, nothing to suggest the click hadn't
+worked exactly as asked.
+
+Fixed both:
+
+- `common.sh` now calls `ensure_log_file()` and resolves
+  `SDCR_SCRIPT_NAME` **before** attempting the lock, so a lock-contention
+  refusal can `log()` itself like everything else this plugin does,
+  instead of only reaching stderr.
+- The delete button's callback now takes `(ok, text)` like its siblings:
+  on failure it re-enables the button (so the user can just retry once
+  whatever was holding the lock finishes) and shows the actual streamed
+  output via `alert()`, instead of silently calling `refreshArtifacts()`
+  either way.
+
+**Worth being honest about the gap this doesn't close**: `carve` and
+`fsck_repair`'s own `streamCommand` callbacks have this same
+ignore-the-result shape and were not touched here - out of scope for the
+report that surfaced this one. Same class of bug, not yet fixed; tracked
+as a follow-up, not assumed away.
+
+**Not yet validated**: whether lock contention was actually what this
+specific user hit (plausible and now impossible to rule back in after the
+fact, since the old code left no trace either way) versus some other
+pre-log failure - and whether the fix above actually produces a
+`log()`ged refusal and a visible `alert()` the next time a real lock
+collision happens on real hardware.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1899,7 +1983,12 @@ Confirmed working end-to-end:
 5. **The new global `flock` lock in `common.sh`** (see the section above) -
    genuinely running two overlapping recovery sessions against the same box
    to confirm the second one's failure message and that the first
-   completes undisturbed hasn't been done on real hardware yet.
+   completes undisturbed hasn't been done on real hardware yet. A real user
+   report (see "A failed artifact delete left no trace..." below) is
+   consistent with a real lock collision happening on `GPIOTest`, and
+   surfaced/fixed a real gap in how that failure was reported - but without
+   a log trace from the old code, that specific incident can't be confirmed
+   as lock contention after the fact, so this item stays open.
 6. **The new superfloppy-media branch in `sdcard_scan.sh`** (see "Destination
    dropdown never populated..." above) - confirmed the classification logic
    against a synthetic device tree shaped like one, but an actual USB stick
@@ -1971,3 +2060,15 @@ Confirmed working end-to-end:
     fix landed, confirming `apache2-error.log` no longer gets a
     `headers already sent` warning on every wizard action, has not been
     done yet.
+17. **The artifact-delete logging/error-visibility fix** (see "A failed
+    artifact delete left no trace anywhere a user would think to look..."
+    above) - the `common.sh` log-ordering change and the delete button's
+    new `(ok, text)` handling were both reasoned through against the real
+    code path that produced the original report, but neither has been
+    re-tested against a real lock collision or a real failed delete on
+    actual hardware yet.
+18. **`carve` and `fsck_repair`'s `streamCommand` callbacks ignoring
+    `(ok, text)`** (see the "gap this doesn't close" note in the same
+    section above) - same shape of bug as the delete button had, found
+    while fixing that one, deliberately left unfixed here as out of
+    scope for the report that surfaced it.

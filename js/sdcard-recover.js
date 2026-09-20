@@ -465,7 +465,18 @@
                     return;
                 }
                 btn.disabled = true;
-                streamCommand('delete_artifact', { name: item.name }, 'sdcr-log-artifacts', null, function () {
+                // Found from a real user report: this used to ignore the
+                // (ok, text) result streamCommand's every other caller
+                // already checks, so a failed delete (e.g. lock
+                // contention - see common.sh) just silently refreshed the
+                // unchanged list with no indication anything went wrong.
+                streamCommand('delete_artifact', { name: item.name }, 'sdcr-log-artifacts', null, function (ok, text) {
+                    if (!ok) {
+                        btn.disabled = false;
+                        alert('Delete failed for "' + item.name + '":\n\n' +
+                            (text && text.trim() ? text.trim() : '(no output - check plugin-fpp-plugin-SDCardRecover.log)'));
+                        return;
+                    }
                     refreshArtifacts();
                 });
             });
