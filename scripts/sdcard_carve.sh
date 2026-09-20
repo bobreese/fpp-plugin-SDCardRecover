@@ -15,7 +15,7 @@ source "$(dirname "$0")/common.sh"
 DEV="$1"
 OUTDIR="$2"
 if [ -z "$DEV" ] || [ -z "$OUTDIR" ]; then
-    echo "ERROR: usage: sdcard_carve.sh <device> <output-dir>" >&2
+    log "ERROR: usage: sdcard_carve.sh <device> <output-dir>"
     exit 1
 fi
 
@@ -23,7 +23,7 @@ DEV=$(validate_device "$DEV") || exit 1
 guard_not_root_device "$DEV"
 
 if ! command -v photorec >/dev/null 2>&1; then
-    echo "ERROR: photorec not found. Install the 'testdisk' package." >&2
+    log "ERROR: photorec not found. Install the 'testdisk' package."
     exit 1
 fi
 

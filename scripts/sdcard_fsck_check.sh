@@ -7,7 +7,7 @@ source "$(dirname "$0")/common.sh"
 
 PART="$1"
 if [ -z "$PART" ]; then
-    echo "ERROR: usage: sdcard_fsck_check.sh <partition-device>" >&2
+    log "ERROR: usage: sdcard_fsck_check.sh <partition-device>"
     exit 1
 fi
 

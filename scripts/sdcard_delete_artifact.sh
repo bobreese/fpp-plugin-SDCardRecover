@@ -21,7 +21,7 @@ source "$(dirname "$0")/common.sh"
 
 NAME="$1"
 if [ -z "$NAME" ]; then
-    echo "ERROR: usage: sdcard_delete_artifact.sh <name>" >&2
+    log "ERROR: usage: sdcard_delete_artifact.sh <name>"
     exit 1
 fi
 
@@ -30,13 +30,13 @@ fi
 # no path separators): this can only ever match exactly one of this
 # plugin's own two known artifact shapes, never an arbitrary path.
 if ! [[ "$NAME" =~ ^(SDCardRecover-[0-9]{8}-[0-9]{6}\.zip|carved(\.[0-9]+)?)$ ]]; then
-    echo "ERROR: refusing to delete unrecognized artifact name '$NAME'" >&2
+    log "ERROR: refusing to delete unrecognized artifact name '$NAME'"
     exit 1
 fi
 
 TARGET="$STATE_DIR/$NAME"
 if [ ! -e "$TARGET" ]; then
-    echo "ERROR: $TARGET does not exist." >&2
+    log "ERROR: $TARGET does not exist."
     exit 1
 fi
 

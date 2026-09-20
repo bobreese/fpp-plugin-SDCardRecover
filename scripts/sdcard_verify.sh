@@ -10,7 +10,7 @@
 source "$(dirname "$0")/common.sh"
 
 if ! mountpoint -q "$MOUNTPOINT"; then
-    echo "ERROR: $MOUNTPOINT is not mounted. Run the mount step first." >&2
+    log "ERROR: $MOUNTPOINT is not mounted. Run the mount step first."
     exit 1
 fi
 

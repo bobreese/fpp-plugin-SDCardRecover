@@ -14,12 +14,12 @@ DEST_ARG="$2"    # usb: target device PARTITION (e.g. /dev/sdb1)
                  # zip: unused
 
 if [ -z "$DEST_TYPE" ]; then
-    echo "ERROR: usage: sdcard_recover.sh <local|usb|zip> [dest-arg]" >&2
+    log "ERROR: usage: sdcard_recover.sh <local|usb|zip> [dest-arg]"
     exit 1
 fi
 
 if [ ! -f "$MANIFEST" ]; then
-    echo "ERROR: no manifest found. Run verification or deep scan first." >&2
+    log "ERROR: no manifest found. Run verification or deep scan first."
     exit 1
 fi
 
@@ -64,7 +64,7 @@ case "$DEST_TYPE" in
             fi
         done
         if [ ${#CATS[@]} -eq 0 ]; then
-            echo "ERROR: no valid category selected for local restore." >&2
+            log "ERROR: no valid category selected for local restore."
             rm -f "$FILELIST"
             exit 1
         fi
@@ -171,7 +171,7 @@ case "$DEST_TYPE" in
         if mountpoint -q "$MOUNTPOINT"; then
             CURRENT_SRC=$(findmnt -n -o SOURCE "$MOUNTPOINT")
             if [ "$CURRENT_SRC" = "$DEST_PART" ]; then
-                echo "ERROR: destination $DEST_PART is the same partition currently mounted as the source card at $MOUNTPOINT. Refusing to write into the read-only source." >&2
+                log "ERROR: destination $DEST_PART is the same partition currently mounted as the source card at $MOUNTPOINT. Refusing to write into the read-only source."
                 rm -f "$FILELIST"
                 exit 1
             fi
@@ -186,7 +186,7 @@ case "$DEST_TYPE" in
             SRC_DISK=$(source_device)
             DEST_DISK="/dev/$(basename "$DEST_PART" | sed -E 's/p?[0-9]+$//')"
             if [ -n "$SRC_DISK" ] && [ "$DEST_DISK" = "$SRC_DISK" ]; then
-                echo "ERROR: destination $DEST_PART is a sibling partition on the same physical card ($SRC_DISK) as the source mounted at $MOUNTPOINT. Refusing to write to the card being recovered." >&2
+                log "ERROR: destination $DEST_PART is a sibling partition on the same physical card ($SRC_DISK) as the source mounted at $MOUNTPOINT. Refusing to write to the card being recovered."
                 rm -f "$FILELIST"
                 exit 1
             fi
@@ -199,7 +199,7 @@ case "$DEST_TYPE" in
         log "Mounting destination $DEST_PART read-write at $DEST_MOUNTPOINT..."
         mount "$DEST_PART" "$DEST_MOUNTPOINT"
         if ! mountpoint -q "$DEST_MOUNTPOINT"; then
-            echo "ERROR: failed to mount destination $DEST_PART (unformatted, or an unsupported filesystem?)" >&2
+            log "ERROR: failed to mount destination $DEST_PART (unformatted, or an unsupported filesystem?)"
             rm -f "$FILELIST"
             exit 1
         fi
@@ -250,7 +250,7 @@ case "$DEST_TYPE" in
         fi
         ;;
     *)
-        echo "ERROR: unknown destination type '$DEST_TYPE'" >&2
+        log "ERROR: unknown destination type '$DEST_TYPE'"
         rm -f "$FILELIST"
         exit 1
         ;;

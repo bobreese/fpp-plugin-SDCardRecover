@@ -2054,6 +2054,68 @@ caused by the stale-JS-tab gotcha above (the first attempt, before a real
 confirmation of what that gotcha actually does) - Step 2's progress bar
 turned solid red.
 
+## The sibling-partition destination guard, confirmed on real hardware - and a real logging gap it surfaced
+
+Item 8 in "Not yet validated" below (see "The source card's own sibling
+partition..." above for the original fix) had only ever been verified
+directly against source, never actually exercised. Real test on
+`GPIOTest`: mounted the source card's `/dev/sda2` as usual, confirmed
+`/dev/sda1` - the same physical card's own boot partition - never appears
+in Step 5's destination dropdown (the client-side filter in
+`populateUsbDestinations()` working as designed), then bypassed that
+filter deliberately via the browser console to force `/dev/sda1` into the
+destination select and clicked Recover anyway - exercising the
+*server-side* guard independently, not just trusting the UI never sends
+a bad value.
+
+`sdcard_recover.sh` refused it correctly:
+
+```
+[11:37:54] === sdcard_recover.sh started: usb /dev/sda1 ===
+[11:37:54] === sdcard_recover.sh finished (exit 1) ===
+```
+
+`exit 1`, progress bar red, no write ever reached the card. The guard
+itself works. But comparing that log excerpt against what the browser
+actually showed live at the time turned up a real, separate gap: the
+browser displayed the actual reason -
+`ERROR: destination /dev/sda1 is a sibling partition on the same
+physical card (/dev/sda) as the source mounted at /mnt/DamagedSD.
+Refusing to write to the card being recovered.` - and that line is
+**entirely missing** from the downloaded log file. Only the generic
+`started`/`finished (exit 1)` bookends made it there.
+
+Checked how widespread this was rather than patching just the one line:
+every `ERROR:` message in this entire plugin - 23 of them across 8
+scripts (`common.sh`, `sdcard_carve.sh`, `sdcard_delete_artifact.sh`,
+`sdcard_evaluate.sh`, `sdcard_fsck_check.sh`, `sdcard_fsck_repair.sh`,
+`sdcard_mount_ro.sh`, `sdcard_recover.sh`, `sdcard_verify.sh`) - used
+plain `echo "ERROR: ..." >&2` instead of `log()`. Every one of them
+reached the live browser stream (via `scripts_dispatch.php`'s `2>&1`
+merge) but never the persistent log file - meaning **every hard-failure
+reason this plugin has ever produced** has been invisible in a
+downloaded log bundle, the primary way these logs actually get diagnosed
+after the fact.
+
+Fixed all 23, with one deliberate exception in how: `common.sh`'s
+`validate_device()` is called via command substitution at all 5 of its
+call sites (`PART=$(validate_device "$PART")`) - `log()`'s own
+`echo "$line"` to stdout would land *inside* the captured return value,
+right next to the real device path, corrupting it. Its two `ERROR:`
+messages keep their existing `echo ... >&2` (unchanged behavior: visible
+live, never captured) and additionally call `log_file_only()` -
+`common.sh`'s existing helper that writes to `$LOG_FILE` only, never
+stdout - alongside it. `guard_not_root_device()` (called directly, not
+via `$(...)`, confirmed against its own already-documented history) and
+every other call site across the other 7 scripts converted straight to
+`log("ERROR: ...")`, safe since nothing else captures their stdout the
+way `validate_device()`'s callers do. All 9 touched scripts pass
+`bash -n`.
+
+**Not yet validated**: a fresh real-hardware failure since this landed,
+confirming its actual `ERROR:` text now shows up in a downloaded log
+bundle - not just the generic exit-code bookends.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -2142,14 +2204,14 @@ Confirmed working end-to-end:
    churn, but the actual next real-hardware retest (reformatted stick,
    deliberately replugged mid-session, Refresh clicked at Step 5) has not
    happened yet.
-8. **The sibling-partition destination guard** (`source_device()` in
+8. ~~The sibling-partition destination guard~~ (`source_device()` in
    `common.sh`, the new check in `sdcard_recover.sh`, and the restored
-   client-side filter - see "The source card's own sibling partition..."
-   above) - the disk-derivation regex and the JS filter logic were both
-   verified directly, but actually selecting a source card's own sibling
-   partition as a destination on real hardware and confirming the refusal
-   fires (rather than just trusting the synthetic/direct verification)
-   has not been done yet.
+   client-side filter - see "The sibling-partition destination guard,
+   confirmed on real hardware..." above) - **confirmed**: the dropdown
+   correctly never offered the source card's own sibling partition, and
+   bypassing that filter deliberately to force it through anyway got a
+   clean, correct real-hardware refusal from `sdcard_recover.sh` itself,
+   `exit 1`, no write ever reached the card.
 9. **The `config/plugin.SDCardRecover/` exclusion in `sdcard_verify.sh`**
    (see "Restoring Config could import the source card's own copy of this
    plugin's scratch state..." above) - the skip logic itself was verified
@@ -2228,3 +2290,11 @@ Confirmed working end-to-end:
     above): a real `mount_ro` failure (card removed after Scan, before
     Mount) turned Step 2's bar solid red, matching the fsck-fallback box
     that correctly appeared alongside it.
+21. **The `ERROR:` -> `log()`/`log_file_only()` conversion across all 9
+    scripts** (see "The sibling-partition destination guard, confirmed on
+    real hardware - and a real logging gap it surfaced" above) - the
+    `validate_device()` command-substitution hazard was reasoned through
+    carefully and all 9 touched scripts pass `bash -n`, but a fresh real
+    failure since this landed, confirming its actual `ERROR:` text now
+    appears in a downloaded log bundle instead of just the generic
+    `started`/`finished (exit N)` bookends, has not been done yet.

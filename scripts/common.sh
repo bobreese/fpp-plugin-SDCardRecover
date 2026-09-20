@@ -57,16 +57,31 @@ CATEGORY_RE='^(config|sequences|music|videos|effects|scripts|events|channelmemor
 # this problem) - the actual fix has to be at every call site: check the
 # command substitution's own exit status, e.g. `PART=$(validate_device
 # "$PART") || exit 1`, rather than trusting this function's exit to propagate.
+# Found from a real user retest: every ERROR echo in this plugin used to
+# go to stderr only, never through log()/log_file_only() - real, until the
+# sibling-partition guard below was actually exercised on real hardware
+# and its exact refusal reason turned out to be missing from the
+# downloaded log bundle entirely, even though it was visible live in the
+# browser at the time. This function specifically can't just call log():
+# every call site does `PART=$(validate_device "$PART")`, a command
+# substitution that captures this function's own STDOUT as the return
+# value - log()'s own `echo "$line"` would land inside $PART right next
+# to the real device path. log_file_only() writes to $LOG_FILE only, never
+# stdout, so it can run alongside the existing >&2 echo (still reaches the
+# browser via scripts_dispatch.php's 2>&1) without touching the captured
+# return value at all.
 validate_device() {
     local dev="$1"
     local base
     base=$(basename "$dev")
     if [[ ! "$base" =~ $DEVICE_RE ]]; then
         echo "ERROR: refusing to operate on unrecognized device name '$dev'" >&2
+        log_file_only "ERROR: refusing to operate on unrecognized device name '$dev'"
         exit 1
     fi
     if [ ! -b "/dev/$base" ]; then
         echo "ERROR: /dev/$base is not a block device" >&2
+        log_file_only "ERROR: /dev/$base is not a block device"
         exit 1
     fi
     echo "/dev/$base"
@@ -129,11 +144,11 @@ guard_not_root_device() {
     media=$(media_device)
     local base="/dev/$(basename "$dev" | sed -E 's/p?[0-9]+$//')"
     if [ "$base" = "$root" ]; then
-        echo "ERROR: $dev appears to be this FPP's own running storage device. Refusing." >&2
+        log "ERROR: $dev appears to be this FPP's own running storage device. Refusing."
         exit 1
     fi
     if [ -n "$media" ] && [ "$base" = "$media" ]; then
-        echo "ERROR: $dev is backing this FPP's own media directory (/home/fpp/media). Refusing." >&2
+        log "ERROR: $dev is backing this FPP's own media directory (/home/fpp/media). Refusing."
         exit 1
     fi
     local part mp
@@ -141,13 +156,13 @@ guard_not_root_device() {
         [ -b "$part" ] || continue
         mp=$(findmnt -n -o TARGET -S "$part" 2>/dev/null)
         if [ -n "$mp" ] && [ "$mp" != "$MOUNTPOINT" ] && [ "$mp" != "$DEST_MOUNTPOINT" ]; then
-            echo "ERROR: $dev has a partition ($part) mounted at $mp. Refusing." >&2
+            log "ERROR: $dev has a partition ($part) mounted at $mp. Refusing."
             exit 1
         fi
     done
     mp=$(findmnt -n -o TARGET -S "$base" 2>/dev/null)
     if [ -n "$mp" ] && [ "$mp" != "$MOUNTPOINT" ] && [ "$mp" != "$DEST_MOUNTPOINT" ]; then
-        echo "ERROR: $dev is mounted at $mp. Refusing." >&2
+        log "ERROR: $dev is mounted at $mp. Refusing."
         exit 1
     fi
 }

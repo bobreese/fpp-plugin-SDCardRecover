@@ -7,7 +7,7 @@ source "$(dirname "$0")/common.sh"
 LOCAL_MEDIA="/home/fpp/media"
 
 if [ ! -f "$MANIFEST" ]; then
-    echo "ERROR: no manifest found. Run verification or deep scan first." >&2
+    log "ERROR: no manifest found. Run verification or deep scan first."
     exit 1
 fi
 
