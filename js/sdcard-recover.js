@@ -407,6 +407,71 @@
         streamCommand('carve', { device: sdcr.device }, 'sdcr-log-carve', 'sdcr-progress-carve', function () {
             // deep-scan results are reported in the log; evaluate step still
             // reflects the verify manifest for the "fits locally?" check.
+            refreshArtifacts();
+        });
+    }
+
+    // Lists old recovery zips and deep-scan output sitting in this plugin's
+    // own scratch state, with a Delete button for each - added after a real
+    // user question about why nothing here ever gets cleaned up
+    // automatically. It deliberately never does: there is no reliable
+    // signal that a browser download actually finished (especially for a
+    // large zip over WiFi to this device), so auto-deleting risks losing
+    // something that was never really saved anywhere else - the same
+    // reasoning behind the uninstall-rescue fix elsewhere in this plugin.
+    // This makes cleanup an explicit, one-click-plus-confirm action instead,
+    // since FPP's own File Manager cannot browse into this plugin's state
+    // directory to do it any other way (see docs/testing.md).
+    function refreshArtifacts() {
+        fetch(sdcrPageUrl('ajax.php', 'endpoint=artifacts&_=' + Date.now()), { cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                renderArtifacts(data.items || []);
+            })
+            .catch(function (err) {
+                var list = $('#sdcr-artifacts-list');
+                if (list) {
+                    list.innerHTML = '<span class="sdcr-danger">Failed to load: ' +
+                        (err && err.message ? err.message : err) + '</span>';
+                }
+            });
+    }
+
+    function renderArtifacts(items) {
+        var list = $('#sdcr-artifacts-list');
+        if (!list) return;
+        if (items.length === 0) {
+            list.innerHTML = '<span class="sdcr-hint">Nothing here yet - recovery zips and deep-scan output will show up here once you create them.</span>';
+            return;
+        }
+        list.innerHTML = '';
+        items.forEach(function (item) {
+            var row = document.createElement('div');
+            row.className = 'sdcr-artifact-row';
+
+            var label = document.createElement('span');
+            var detail = item.type === 'dir'
+                ? (item.fileCount + ' file' + (item.fileCount === 1 ? '' : 's') + ', ')
+                : '';
+            label.textContent = item.name + ' - ' + detail + humanSize(item.sizeBytes) + ' - ' + item.mtime;
+            row.appendChild(label);
+
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-danger';
+            btn.textContent = 'Delete';
+            btn.addEventListener('click', function () {
+                if (!confirm('Permanently delete "' + item.name + '"? This cannot be undone - make sure you already have a copy of anything you need from it.')) {
+                    return;
+                }
+                btn.disabled = true;
+                streamCommand('delete_artifact', { name: item.name }, 'sdcr-log-artifacts', null, function () {
+                    refreshArtifacts();
+                });
+            });
+            row.appendChild(btn);
+
+            list.appendChild(row);
         });
     }
 
@@ -506,6 +571,7 @@
                             var downloadUrl = sdcrPageUrl('ajax.php', 'endpoint=' + encodeURIComponent('download/' + name));
                             link.innerHTML = '<a class="btn btn-primary" href="' + downloadUrl + '">Download ' + name + '</a>';
                         }
+                        refreshArtifacts();
                     }
                     next(i + 1);
                 });
@@ -526,6 +592,11 @@
         $('#sdcr-btn-evaluate').addEventListener('click', runEvaluate);
         $('#sdcr-btn-recover').addEventListener('click', runRecover);
         $('#sdcr-btn-refresh-usb').addEventListener('click', refreshUsbDestinations);
+        $('#sdcr-btn-refresh-artifacts').addEventListener('click', refreshArtifacts);
+        // Loaded up front, independent of wizard progress - cleaning up an
+        // old zip from a past session shouldn't require running the whole
+        // wizard again first.
+        refreshArtifacts();
 
         $all('input[name="sdcr-dest"]').forEach(function (cb) {
             cb.addEventListener('change', function () {

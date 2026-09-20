@@ -227,4 +227,26 @@
         </div>
     </div>
 
+    <!-- Not a numbered wizard step - always available regardless of wizard
+         progress, since cleaning up an old zip from a past session
+         shouldn't require running through Scan/Mount/Verify again first. -->
+    <div class="sdcr-step" id="sdcr-step-artifacts">
+        <div class="sdcr-step-header">
+            <span class="sdcr-step-title">Recovery Artifacts</span>
+            <button type="button" id="sdcr-btn-refresh-artifacts" class="btn btn-secondary">Refresh</button>
+        </div>
+        <div class="sdcr-step-body">
+            <p class="sdcr-hint">
+                Zips and deep-scan output from this and past sessions, kept here
+                until you delete them - nothing is ever removed automatically,
+                since there's no reliable way to know a download actually
+                finished. Delete anything you've already saved a copy of
+                elsewhere; FPP's own File Manager can't browse into this folder
+                to do it for you.
+            </p>
+            <div id="sdcr-artifacts-list" class="sdcr-summary"></div>
+            <pre class="sdcr-log" id="sdcr-log-artifacts" style="display:none;"></pre>
+        </div>
+    </div>
+
 </div>

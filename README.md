@@ -30,6 +30,11 @@ without running any destructive repair unless you explicitly ask for it.
 - Every step logs to `media/logs/plugin-fpp-plugin-SDCardRecover.log`, so
   it shows up automatically in FPP's own File Manager -> Logs tab, not
   just the live browser stream.
+- Old recovery zips and deep-scan output are never deleted automatically -
+  there's no reliable way to know a download actually finished - but a
+  Recovery Artifacts section on the same page lists them with a Delete
+  button for each, since FPP's File Manager can't browse into this
+  plugin's own storage folder to clean them up for you.
 
 ## Documentation
 

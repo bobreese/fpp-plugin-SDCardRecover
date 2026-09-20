@@ -38,6 +38,10 @@ switch (true) {
         sdcr_api_evaluate();
         break;
 
+    case $endpoint === 'artifacts':
+        sdcr_api_artifacts();
+        break;
+
     case strpos($endpoint, 'download/') === 0:
         sdcr_api_download(substr($endpoint, strlen('download/')));
         break;
@@ -64,6 +68,70 @@ function sdcr_api_evaluate() {
         }
     }
     echo json_encode(['error' => 'evaluate failed', 'rc' => $rc, 'output' => $out]);
+}
+
+// Lists this plugin's own leftover recovery artifacts (old zips, deep-scan
+// output directories including any stray carved.N sibling from before the
+// /d trailing-slash fix - see docs/testing.md) so the UI can offer them for
+// explicit, one-at-a-time deletion. Read-only - actual deletion goes through
+// stream.php/scripts_dispatch.php's delete_artifact command instead, since
+// sdcard_carve.sh's own output directories are root-owned (photorec creates
+// them) and this file runs as the unprivileged fpp user; it can list and
+// stat them (755 permissions allow read+traverse) but could not delete their
+// contents even if it tried.
+function sdcr_api_artifacts() {
+    header('Content-Type: application/json');
+    $stateDir = '/home/fpp/media/config/plugin.SDCardRecover';
+    $items = [];
+    if (is_dir($stateDir)) {
+        foreach (scandir($stateDir) as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            // Only ever list something this plugin itself could have
+            // created - manifest.tsv (this session's own live state, not
+            // an "artifact") and anything else are deliberately excluded
+            // by only matching the same allowlist delete_artifact uses.
+            if (!preg_match('/^(SDCardRecover-[0-9]{8}-[0-9]{6}\.zip|carved(\.[0-9]+)?)$/', $entry)) {
+                continue;
+            }
+            $path = $stateDir . '/' . $entry;
+            if (is_dir($path)) {
+                $size = 0;
+                $count = 0;
+                $iter = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS)
+                );
+                foreach ($iter as $f) {
+                    if ($f->isFile()) {
+                        $size += $f->getSize();
+                        $count++;
+                    }
+                }
+                $items[] = [
+                    'name' => $entry,
+                    'type' => 'dir',
+                    'sizeBytes' => $size,
+                    'fileCount' => $count,
+                    'mtime' => date('Y-m-d H:i:s', filemtime($path)),
+                ];
+            } else {
+                $items[] = [
+                    'name' => $entry,
+                    'type' => 'file',
+                    'sizeBytes' => filesize($path),
+                    'mtime' => date('Y-m-d H:i:s', filemtime($path)),
+                ];
+            }
+        }
+    }
+    // Newest-looking name first - good enough given every name this plugin
+    // creates is either a sortable timestamp (zips) or a small dir_num
+    // suffix (carved.N), without needing a second stat() pass for mtime.
+    usort($items, function ($a, $b) {
+        return strcmp($b['name'], $a['name']);
+    });
+    echo json_encode(['items' => $items]);
 }
 
 function sdcr_api_download($zipname) {

@@ -60,9 +60,10 @@ function sdcr_dispatch($cmd, $args) {
             break;
 
         case 'fsck_repair':
-            // Deliberately the only destructive action in this plugin -
-            // the UI must require a separate explicit confirmation before
-            // ever issuing this request.
+            // fsck -y and delete_artifact (below) are the only two
+            // destructive actions in this plugin - both require the UI to
+            // get a separate explicit confirmation before ever issuing
+            // this request.
             $dev = sdcr_require_device($args, 'device');
             sdcr_passthru('sdcard_fsck_repair.sh', [escapeshellarg($dev)]);
             break;
@@ -104,6 +105,18 @@ function sdcr_dispatch($cmd, $args) {
 
         case 'unmount':
             sdcr_passthru('sdcard_unmount.sh', []);
+            break;
+
+        case 'delete_artifact':
+            // Same allowlist as sdcard_delete_artifact.sh's own check -
+            // defense in depth, not the only one. Rejected here before it
+            // ever reaches a shell command, matching every other argument
+            // in this file.
+            $name = isset($args['name']) ? $args['name'] : '';
+            if (!preg_match('/^(SDCardRecover-[0-9]{8}-[0-9]{6}\.zip|carved(\.[0-9]+)?)$/', $name)) {
+                throw new Exception('invalid artifact name');
+            }
+            sdcr_passthru('sdcard_delete_artifact.sh', [escapeshellarg($name)]);
             break;
 
         default:

@@ -75,3 +75,19 @@ See [Your First Recovery Session, End to End](first-recovery-walkthrough.md).
    `media/logs/plugin-fpp-plugin-SDCardRecover.log`, viewable and
    downloadable from FPP's own File Manager -> Logs tab, not just the live
    log panel on this page.
+
+## Recovery Artifacts
+
+A section below Step 5, not part of the numbered wizard flow and always
+available regardless of where you are in it. Lists old recovery zips and
+deep-scan (carved) output sitting in this plugin's own scratch state
+(`config/plugin.SDCardRecover/`), with a **Delete** button for each.
+
+Nothing here is ever deleted automatically - there is no reliable way for
+the plugin to know a browser download actually finished (especially for a
+large zip over WiFi), so auto-deleting risks losing something you never
+actually got a copy of anywhere else. This is the deliberate alternative:
+an explicit, one-click-plus-confirm cleanup action, since FPP's own File
+Manager can't browse into this folder to do it for you (see
+[Testing & Real-Hardware Findings](testing.md) for why). Only delete
+something once you're sure you already have what you need from it.

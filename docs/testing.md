@@ -1701,6 +1701,70 @@ fileopt and whole-disk-selection fixes landed, it was successfully
 recovering hundreds of real PNG/JPG/RIFF files on every run. It was
 only ever failing to tell the user where they ended up.
 
+## Added: Recovery Artifacts section, after a real user asked why nothing gets cleaned up
+
+Direct follow-on from two real-hardware findings earlier in this round:
+FPP's File Manager cannot browse into `config/plugin.SDCardRecover/` to
+retrieve or delete anything inside it (confirmed against
+`www/filemanager.php`/`www/js/fpp.js` - the Config tab is `maxdepth=1`,
+and no category outside the Images thumbnail view has any click-to-open
+behavior for a folder row at all), and old recovery zips (one real
+example: 360 MB) and deep-scan `carved.N` output were piling up in that
+same directory with no way to remove them short of SSH.
+
+The plugin already deletes nothing automatically, on purpose - there is
+no reliable signal that a browser download actually completed,
+especially for a large zip over WiFi to this device, so auto-deleting
+risks destroying the only copy of something the user never actually got
+off the box. That reasoning is sound and unchanged. What was missing was
+any way to clean up *deliberately*, once the operator actually knows
+they're done with something.
+
+Added a new, un-numbered "Recovery Artifacts" section to `status.php`,
+independent of wizard progress:
+
+- `ajax.php` gained a new read-only `artifacts` endpoint (`sdcr_api_artifacts()`)
+  that lists zips and carved-output directories in `$STATE_DIR` (excluding
+  `manifest.tsv`, this session's own live state, not a leftover artifact),
+  with size, file count (for directories), and modified time. Runs as the
+  unprivileged `fpp` user like every other `ajax.php` endpoint - safe,
+  since listing/`stat`-ing a 755 root-owned directory only needs
+  read+traverse permission, which `fpp` (as "other") already has.
+- A new `scripts/sdcard_delete_artifact.sh`, dispatched through
+  `stream.php`/`scripts_dispatch.php` like every other real action in this
+  plugin (not through `ajax.php`), specifically because `sdcard_carve.sh`'s
+  own output directories are **root-owned** (confirmed live:
+  `drwxr-xr-x 2 root root ... carved.1`) - a plain PHP `unlink()`/`rmdir()`
+  running as `fpp` could list them but not delete their contents, only
+  root (via `sudo`, the same mechanism every other script here already
+  uses) can. `fsck_repair` was already documented as "the only destructive
+  action in this plugin"; this is the second, and gets the same treatment:
+  a strict allowlist regex (`^(SDCardRecover-[0-9]{8}-[0-9]{6}\.zip|carved(\.[0-9]+)?)$`)
+  checked in **both** `scripts_dispatch.php` (before it ever reaches a
+  shell command) and the script itself (defense in depth) - anchored, no
+  wildcards, no path separators, so it can only ever match exactly one of
+  this plugin's own two known artifact shapes, never an arbitrary path.
+- The JS requires an explicit `confirm()` per item before deleting -
+  matching the weight of an irreversible action - and refreshes the list
+  automatically after a carve or a zip-recovery completes, so newly
+  created artifacts show up without a manual refresh.
+
+Verified directly before committing: the allowlist regex against a dozen
+real and adversarial names (valid zip/carved names all matched; path
+traversal attempts, `manifest.tsv`, and near-miss names like `carvedX`
+all correctly rejected) in both bash (matching the shell script's own
+check) and by inspection against the equivalent PCRE syntax
+(`scripts_dispatch.php`/`ajax.php`'s checks); the full render/delete flow
+in a real browser JS engine using data shaped exactly like this session's
+own real artifacts (a 360 MB zip, a populated `carved.2`, an empty
+`carved.1`) - correct sizes, file counts, and confirmed the delete button
+fires `delete_artifact` with the right name and disables itself.
+
+**Not yet validated**: an actual delete against a real root-owned
+`carved.N` directory on real hardware, confirming `sudo rm -rf` in the
+new script actually succeeds where a plain `fpp`-user delete would fail,
+and that the artifacts list correctly reflects removal afterward.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1831,3 +1895,9 @@ Confirmed working end-to-end:
     real end-to-end retest (mount a card, reload the page without
     replugging anything, click Scan, confirm it shows up without needing
     a physical replug) has not been done yet.
+15. **The Recovery Artifacts section** (see "Added: Recovery Artifacts
+    section..." above) - the listing/render/delete-request logic was
+    verified directly (regex allowlist, JS render/delete flow in a real
+    browser engine), but an actual delete of a real root-owned
+    `carved.N` directory on real hardware, confirming `sudo rm -rf`
+    succeeds and the list updates afterward, has not been done yet.

@@ -4,12 +4,16 @@
 pluginInfo.json         Plugin manifest (name, tracked deps: testdisk only -
                         see docs/testing.md for why zip isn't, privacy block)
 menu.inc                Registers the "SD Card Recover" status-page menu entry
-status.php              Main 5-step wizard page
+status.php              Main 5-step wizard page, plus an un-numbered
+                        Recovery Artifacts section (always available,
+                        independent of wizard progress)
 stream.php              Streaming worker (pattern copied from FPP's copystorage.php)
 scripts_dispatch.php    Whitelist: stream.php ?cmd= -> one validated shell script + args,
                         merges stderr and appends a real SDCR_EXITCODE:<n> marker
-ajax.php                Small sync JSON endpoints: evaluate, zip download - NOT named
-                        api.php on purpose, see docs/testing.md
+ajax.php                Small sync JSON endpoints: evaluate, zip download,
+                        artifacts (lists old zips/carved output for the
+                        Recovery Artifacts section) - NOT named api.php on
+                        purpose, see docs/testing.md
 js/sdcard-recover.js    Wizard controller + streaming log panels
 css/sdcard-recover.css  Step cards, log panes, indeterminate progress bars
 scripts/
@@ -41,6 +45,13 @@ scripts/
                          own media/backups/ category, if Config is
                          included); usb/zip always copy everything verified
   sdcard_unmount.sh      Cleanup
+  sdcard_delete_artifact.sh  Deletes one named zip or carved-output
+                         directory from the plugin's own scratch state, on
+                         explicit user request from the Recovery Artifacts
+                         section - runs as root since carved output is
+                         root-owned (see docs/testing.md); name checked
+                         against a strict allowlist in both
+                         scripts_dispatch.php and here
   fpp_install.sh         Plugin Manager install hook: apt-get installs
                          e2fsprogs/dosfstools/exfatprogs/rsync by hand,
                          untracked (see docs/testing.md for why), creates
