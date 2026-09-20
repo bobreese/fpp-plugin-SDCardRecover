@@ -30,12 +30,17 @@ require_once "config.php";
 require_once "common.php";
 require_once dirname(__FILE__) . '/scripts_dispatch.php';
 
+// Content-Type must be set BEFORE DisableOutputBuffering() - its own
+// trailing flush() sends whatever headers exist at that point (confirmed
+// against FPP's real www/common.php), so any header() called after it
+// always fails with "headers already sent". www/copystorage.php (the
+// pattern this file is based on) sets its own header before calling
+// DisableOutputBuffering() for the same reason - see docs/testing.md.
+header('Content-Type: text/plain');
 DisableOutputBuffering();
 
 $cmd  = isset($_POST['cmd']) ? $_POST['cmd'] : '';
 $args = isset($_POST['args']) ? $_POST['args'] : [];
-
-header('Content-Type: text/plain');
 
 try {
     sdcr_dispatch($cmd, $args);

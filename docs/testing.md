@@ -1765,6 +1765,69 @@ fires `delete_artifact` with the right name and disables itself.
 new script actually succeeds where a plain `fpp`-user delete would fail,
 and that the artifacts list correctly reflects removal afterward.
 
+## `stream.php`'s own `Content-Type` header silently never applied (real bug, found from a real-hardware log bundle)
+
+Not a hardware test aimed at finding this - a routine real-hardware
+session on `GPIOTest` (the same session that confirmed the `/d`
+trailing-slash fix and the scan-log-bundle item below), reviewed from its
+downloaded log zip afterward. Every single wizard action in that
+session - 48 of 49 script invocations, every scan/mount/verify/carve/
+recover/unmount routed through `stream.php` - logged `PHP Warning: Cannot
+modify header information - headers already sent in .../stream.php on
+line 38` to `apache2-error.log`. 100% reproducible, and not new: the
+session's own `logs/fpp_plugin_manager.log` shows six live git
+fast-forwards of this plugin mid-session, none of which touched any PHP
+file, and the warning fired identically before and after every one of
+them. The one invocation with no matching warning was
+`sdcard_evaluate.sh`, which runs through `ajax.php`, not `stream.php` -
+consistent with the bug being specific to this one file.
+
+Line 38 is `header('Content-Type: text/plain');`, called right after
+`DisableOutputBuffering()`. Traced against FPP's own real
+`www/common.php` rather than guessed at: `DisableOutputBuffering()` ends
+with
+
+```php
+ob_implicit_flush(true);
+flush();
+```
+
+an unconditional `flush()`, which forces PHP to commit and send whatever
+headers exist at that point to the client - even with zero bytes of body
+written yet. Any `header()` call issued afterward is too late. This isn't
+a guess: `DisableOutputBuffering()`'s own `header('X-Accel-Buffering:
+no')` (a few lines earlier in the same function, before its `flush()`)
+never produced a matching warning anywhere in the log - it ran while
+headers were still open; `stream.php`'s own header call, issued after
+`DisableOutputBuffering()` returned, did not.
+
+Confirmed against the pattern this file's own header comment says it was
+copied from: FPP core's real `www/copystorage.php` sets its one header
+(`Access-Control-Allow-Origin`) *before* calling `DisableOutputBuffering()`,
+never after. `stream.php` had the two calls in the wrong order relative to
+the very pattern it claimed to follow.
+
+Not a functional bug - all 48 affected requests in this session still
+completed and streamed their output correctly, since a failed `header()`
+call doesn't block the response body, only the browser never actually got
+`Content-Type: text/plain` (falling back to PHP's default `text/html`,
+harmless for a `<pre>`/log-panel display that never renders its content
+as markup). The real cost is unconditional log noise: one warning line
+per user action, for as long as the plugin stays installed - smaller in
+volume than the earlier `api.php` finding (which fired on every automatic
+status poll, not just user-driven actions), but the same shape of
+problem, and present since this file was first written, not introduced by
+anything in this test session.
+
+Fixed by moving `header('Content-Type: text/plain');` to before
+`DisableOutputBuffering()` in `stream.php`, matching `copystorage.php`'s
+own ordering, with a comment explaining why the order matters so it
+doesn't drift back.
+
+**Not yet validated**: the fix reorders two lines against a
+source-confirmed mechanism, but hasn't been re-run against real hardware
+yet to confirm `apache2-error.log` actually goes quiet.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1871,24 +1934,24 @@ Confirmed working end-to-end:
     session..." above) - not yet confirmed on real hardware that a card
     actually comes back block-layer writable (`blockdev --getro` reporting
     `0`) after a normal Cleanup or an uninstall with the card still attached.
-11. **`log_file_only()` and `sdcard_scan.sh`'s new "Scan found:" block**
+11. ~~`log_file_only()` and `sdcard_scan.sh`'s new "Scan found:" block~~
     (see "A scan's own results never reached the persistent log file..."
-    above) - verified directly by replaying the exact device lines a real
-    scan produced through both the stdout and logging paths, but a fresh
-    scan run for real on the Pi, followed by actually downloading the log
-    bundle and confirming the device list is there, has not been done yet.
+    above) - **confirmed** from a real `GPIOTest` session's downloaded log
+    bundle (2026-09-20): every real scan in that session logged its full,
+    timestamped device listing, and the listing was there in the actual
+    zip downloaded from FPP's own Logs tab, not just live in the browser.
 12. ~~The deep-scan offer actually rendering from the `DIRS_WITH_ERRORS`
     fix~~ - **confirmed** on the real hardware that surfaced the bug: after
     a hard refresh (see the stale-JS testing gotcha above), the offer
     rendered and "Run deep scan" ran successfully, which is what surfaced
     the next finding below.
-13. **The `/d` trailing-slash fix and stray-directory warning in
-    `sdcard_carve.sh`** (see "photorec's real output landed next to
-    $OUTDIR, not inside it..." above) - the path-construction logic was
-    directly verified against source and with real `find` invocations,
-    but an actual carve run since this specific fix landed, confirming
-    the candidate count now correctly reports a nonzero number and no new
-    stray sibling directory gets created, has not been done yet.
+13. ~~The `/d` trailing-slash fix and stray-directory warning in
+    `sdcard_carve.sh`~~ (see "photorec's real output landed next to
+    $OUTDIR, not inside it..." above) - **confirmed** on the same real
+    `GPIOTest` session (2026-09-20): a carve run with the fix in place
+    correctly reported 359 candidate file(s) - the first nonzero count
+    that session - with no `STRAY_DIRS` warning, meaning no leftover
+    sibling directory was created.
 14. **The auto-unmount-before-scan fix in `runScan()`** (see "I have to
     unplug and replug the reader every time..." above) - the unmount ->
     scan call ordering was verified with a stubbed `streamCommand`, but a
@@ -1901,3 +1964,10 @@ Confirmed working end-to-end:
     browser engine), but an actual delete of a real root-owned
     `carved.N` directory on real hardware, confirming `sudo rm -rf`
     succeeds and the list updates afterward, has not been done yet.
+16. **The `stream.php` header-ordering fix** (see "`stream.php`'s own
+    `Content-Type` header silently never applied..." above) - the root
+    cause was traced directly against FPP's real `www/common.php` and
+    `www/copystorage.php`, but a fresh real-hardware session since the
+    fix landed, confirming `apache2-error.log` no longer gets a
+    `headers already sent` warning on every wizard action, has not been
+    done yet.
