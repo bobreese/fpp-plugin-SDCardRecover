@@ -98,9 +98,27 @@ log "Deep scan will search the whole disk ($DEV), not just its first partition -
 # Found from a real user report: without this, /log silently wrote
 # nowhere near $OUTDIR, leaving an empty output directory with no trace
 # of photorec's own run even existing.
+#
+# The trailing slash on /d's argument is not cosmetic - a THIRD bug found
+# on the same real-hardware retest, after the fileopt and whole-disk-
+# selection fixes above: the live output clearly showed real files being
+# recovered ("png: 103 recovered", "jpg: 12", "riff: 9 recovered"), yet
+# this script still reported "0 candidate file(s) carved". Confirmed
+# against photorec's own source (src/phmain.c's /d argument parsing,
+# src/photorec.c's photorec_mkdir()): without a trailing slash, `/d
+# $OUTDIR` is used VERBATIM as the base name photorec appends ".<N>" to
+# (`snprintf(working_recup_dir, ..., "%s.%u", recup_dir, dir_num)`) - its
+# real output directory becomes "$OUTDIR.1" (e.g. ".../carved.1"), a
+# SIBLING of $OUTDIR, never a subdirectory of it. `find "$OUTDIR"` below
+# was searching the one directory photorec never wrote into. WITH a
+# trailing slash, phmain.c's own parsing instead appends photorec's
+# built-in "recup_dir" default name to the given path first
+# (photorec.h: `#define DEFAULT_RECUP_DIR "recup_dir"`), so the numbered
+# directory lands at "$OUTDIR/recup_dir.1" - genuinely inside $OUTDIR,
+# where the existing recursive `find` below already looks.
 (
     cd "$OUTDIR" || exit 1
-    photorec /log /d "$OUTDIR" /cmd "$DEV" \
+    photorec /log /d "$OUTDIR/" /cmd "$DEV" \
         255,fileopt,everything,disable,mp3,enable,riff,enable,mov,enable,jpg,enable,png,enable,search
 )
 
@@ -112,6 +130,20 @@ log "Deep scan complete (exit $RC). $FOUND candidate file(s) carved to $OUTDIR."
 if [ -f "$OUTDIR/photorec.log" ]; then
     log "photorec's own detailed log is at $OUTDIR/photorec.log."
 fi
+# Found real, undownloaded recovered files this way on a box that had run
+# an earlier, pre-fix version of this script: photorec's own naming
+# ("$OUTDIR.<N>") looks exactly like this glob, so a stray sibling here is
+# either real leftover data from before this fix, or (far less likely)
+# something unrelated that happens to match - either way, worth surfacing
+# rather than leaving it silently sitting next to $OUTDIR forever.
+STRAY_DIRS=()
+for d in "$OUTDIR".[0-9]*; do
+    [ -d "$d" ] && STRAY_DIRS+=("$d")
+done
+if [ ${#STRAY_DIRS[@]} -gt 0 ]; then
+    log "WARNING: found ${#STRAY_DIRS[@]} director$([ ${#STRAY_DIRS[@]} -eq 1 ] && echo y || echo ies) next to $OUTDIR named like photorec's own output (${STRAY_DIRS[*]}) - likely real carved files from a run before this script's /d trailing-slash fix landed. Check them; they are not included in the count below."
+fi
+
 log "Carved files have generic names (photorec cannot recover original paths);"
 log "review them before moving into your show's media folders."
 exit $RC

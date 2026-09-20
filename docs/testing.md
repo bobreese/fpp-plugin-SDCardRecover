@@ -1645,6 +1645,62 @@ correctly, a `cd` failure exits the subshell (not the whole script) with
 status 1, and the candidate count correctly excludes `photorec.log`
 while still counting real carved output.
 
+## photorec's real output landed next to $OUTDIR, not inside it - deep scan was working all along (real bug, real hardware)
+
+A third bug in the same invocation, found on the very next real-hardware
+retest after the whole-disk-selection fix above. This time photorec's
+live output clearly showed genuine recovery happening - `png: 103
+recovered`, `jpg: 12`, `riff: 9 recovered`, climbing into the hundreds by
+the end of the run - yet `sdcard_carve.sh` still reported
+`0 candidate file(s) carved to $OUTDIR`. Confirmed on the user's own box:
+`ls -la` of the state directory showed `carved/` (this run's `$OUTDIR`,
+nearly empty) sitting next to `carved.1/` and `carved.2/` - sibling
+directories nobody told the user to expect, one of them (12288 bytes,
+many entries) clearly holding the real recovered files from this exact
+run.
+
+Traced directly against photorec's own source rather than guessed at
+again:
+
+- `src/phmain.c`'s parsing of `/d <path>`: if `<path>` does **not** end
+  in a trailing slash, `recup_dir` is set to that path *verbatim* - not
+  treated as a container directory to create numbered subfolders inside.
+- `src/photorec.c`'s `photorec_mkdir()`: its real output directory is
+  built as `snprintf(..., "%s.%u", recup_dir, dir_num)` - literally
+  `recup_dir` with `.<N>` appended directly onto the end. With
+  `$OUTDIR` = `.../carved` (no trailing slash, exactly what
+  `sdcard_carve.sh` passed), that produces `.../carved.1` - a **sibling**
+  of `carved/`, not anything inside it. `find "$OUTDIR" -type f` was
+  searching the one directory photorec never wrote a single byte into.
+- With a trailing slash, `phmain.c`'s own parsing instead appends
+  photorec's built-in default name first (`src/photorec.h`:
+  `#define DEFAULT_RECUP_DIR "recup_dir"`), landing the numbered output
+  at `.../carved/recup_dir.1` - genuinely inside `$OUTDIR`, exactly where
+  the existing recursive `find` already looks.
+
+Fixed by passing `"$OUTDIR/"` (trailing slash added) to `/d` instead of
+`"$OUTDIR"`. Verified the exact path-construction difference directly
+before committing - simulated both the argument-parsing and the
+`.<N>`-suffix logic from source, confirmed the no-slash case produces a
+sibling path and the with-slash case produces a path genuinely inside
+`$OUTDIR`, then confirmed with a real `find` invocation that only the
+latter gets discovered by this script's own counting logic.
+
+Also added a stray-sibling-directory check for exactly the situation
+this bug already caused on real hardware: after every run,
+`sdcard_carve.sh` now globs for `$OUTDIR.[0-9]*` and logs a `WARNING`
+naming any it finds, so real recovered data left behind by a pre-fix run
+(or any future regression of the same kind) doesn't just sit there
+silently undiscovered. Verified the glob against both a populated
+two-sibling case (matching the user's own `carved.1`/`carved.2`
+situation exactly) and a clean case with nothing to report.
+
+**What this means for everything tested up to this point**: deep
+scan/carving was never actually broken at finding files - once the
+fileopt and whole-disk-selection fixes landed, it was successfully
+recovering hundreds of real PNG/JPG/RIFF files on every run. It was
+only ever failing to tell the user where they ended up.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1669,6 +1725,15 @@ Confirmed working end-to-end:
   `settings`/`timezone` fix works end to end (see the section above for the
   one real surprise this surfaced - FPP's Initial Setup wizard reappearing,
   which turned out to be expected FPP behavior, not a bug in this plugin)
+- **Deep scan/carving actually recovering real files** - once the
+  `fileopt` extension list and the `255,` whole-disk selector were both
+  fixed (see the sections above), a real run against `GPIOTest` recovered
+  hundreds of genuine png/jpg/riff files, confirmed live in photorec's own
+  progress output (`png: 103 recovered`, growing past 300 by the end of
+  the run) and again by finding them on disk afterward. The only
+  remaining gap was `sdcard_carve.sh` itself failing to report where they
+  landed (the `$OUTDIR` vs `$OUTDIR.N` sibling-directory bug, fixed in the
+  same section) - the actual recovery was working the whole time
 
 **Not yet validated:**
 
@@ -1753,16 +1818,13 @@ Confirmed working end-to-end:
     a hard refresh (see the stale-JS testing gotcha above), the offer
     rendered and "Run deep scan" ran successfully, which is what surfaced
     the next finding below.
-13. **The fixed `fileopt` extension list AND the `255,` whole-disk
-    selector in `sdcard_carve.sh`** (see "photorec's `fileopt` extension
-    list silently disabled every real file type..." and "photorec was
-    scanning the boot partition, not the disk..." above) - every token
-    and the partition selector were each individually confirmed against
-    photorec's real source, but an actual carve run with both fixes in
-    place, against real jpg/mp3/mov/png/riff test data deliberately
-    placed on a card, confirming files actually come back this time, has
-    not been done yet - only the two successively-broken configurations
-    have actually been run on real hardware so far.
+13. **The `/d` trailing-slash fix and stray-directory warning in
+    `sdcard_carve.sh`** (see "photorec's real output landed next to
+    $OUTDIR, not inside it..." above) - the path-construction logic was
+    directly verified against source and with real `find` invocations,
+    but an actual carve run since this specific fix landed, confirming
+    the candidate count now correctly reports a nonzero number and no new
+    stray sibling directory gets created, has not been done yet.
 14. **The auto-unmount-before-scan fix in `runScan()`** (see "I have to
     unplug and replug the reader every time..." above) - the unmount ->
     scan call ordering was verified with a stubbed `streamCommand`, but a
