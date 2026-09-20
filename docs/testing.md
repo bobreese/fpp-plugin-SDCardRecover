@@ -1975,6 +1975,79 @@ deleted the leftover recovery zip successfully - the Delete button works
 end to end for the first time since the Recovery Artifacts section was
 added. Closes out items 15 and 19 below.
 
+## The global `flock` lock, confirmed under genuine concurrency (real hardware)
+
+Item 5 in "Not yet validated" below had sat open the longest - the lock
+itself (see "`LOCKFILE` was declared and never used..." above) had never
+actually been exercised by two overlapping operations on real hardware,
+only reasoned about. A real deliberate test on `GPIOTest` closed it out
+properly: started a deep scan (`sdcard_carve.sh`, a genuinely slow
+operation - this run took nearly 9 minutes) in one browser tab, then from
+a second tab triggered `runScan()`'s own unmount -> scan chain (see "I
+have to unplug and replug the reader every time..." above) while the
+carve was still running.
+
+```
+[11:01:54] === sdcard_carve.sh started: /dev/sda ... ===
+[11:01:56] ERROR: sdcard_unmount.sh could not start - another SDCard Recover operation is already running ...
+[11:01:57] ERROR: sdcard_scan.sh could not start - another SDCard Recover operation is already running ...
+[11:10:47] Deep scan complete (exit 0). 359 candidate file(s) carved ...
+[11:10:47] === sdcard_carve.sh finished (exit 0) ===
+```
+
+Both halves of the second tab's chained request were correctly refused,
+back to back, one second apart - and, thanks to the log-ordering fix from
+"A failed artifact delete left no trace..." above, both refusals are
+right there in `plugin-fpp-plugin-SDCardRecover.log`, not just the
+browser. More importantly, the carve holding the lock ran for another
+nine minutes after being contended against and finished cleanly at
+`exit 0` with the same 359-candidate count a previous confirmed run
+found - completely undisturbed. The lock isn't just rejecting latecomers;
+it's actually protecting the operation that got there first.
+
+## The progress bar always turned green, even on failure (real bug, found from a real user question)
+
+A real question - "is there a color change of this line on failure, maybe
+red?" - had an honest answer of no, and that turned out to be worth
+fixing rather than just explaining. `setProgress()` (`js/sdcard-recover.js`)
+only ever took a plain boolean, and every caller passed `false` - which
+turns the bar **green** (`sdcr-progress-done`) - the instant the HTTP
+response finished, in both `xhr.onload` and `xhr.onerror`:
+
+```js
+xhr.onload = function () {
+    setProgress(progressId, false);   // before exitOk is even computed
+    ...
+    var exitOk = ...;                 // real result, checked after
+    onDone(exitOk, text);
+};
+xhr.onerror = function () {
+    setProgress(progressId, false);   // a genuine network failure - still green
+    onDone(false, logEl.textContent);
+};
+```
+
+No `sdcr-progress-fail`/red state existed anywhere in
+`css/sdcard-recover.css` either. So a failed mount, a failed carve, or
+the request itself erroring out (`xhr.onerror`) all looked visually
+identical to success - solid green - with only the log text underneath
+ever saying otherwise, and nothing distinguishing "it worked" from "it
+didn't" at a glance.
+
+Fixed by giving `setProgress()` a real third state instead of a boolean:
+`true` (blue, animated, in progress), `false` (green, real exit code was
+`0`), or `'fail'` (red, nonzero exit or a network-level error). `xhr.onload`
+now computes `exitOk` from the real `SDCR_EXITCODE:<n>` marker *before*
+setting the bar's state, instead of after; `xhr.onerror` now reports
+`'fail'` instead of `false`. `docs/architecture.md`'s "Progress UI"
+section, which described the animation but never the color meanings
+(there was no third meaning to describe until now), was updated to
+document all three states.
+
+**Not yet validated**: an actual failed command on real hardware (a
+deliberately-bad device argument, or a genuine mid-carve interruption)
+confirming the bar actually turns red instead of green.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -2043,15 +2116,12 @@ Confirmed working end-to-end:
    `restartFlag` is set now, which shrinks the risk window, but doesn't
    change that fppd could in principle still be running when the write
    happens. A real architectural change, not yet attempted.
-5. **The new global `flock` lock in `common.sh`** (see the section above) -
-   genuinely running two overlapping recovery sessions against the same box
-   to confirm the second one's failure message and that the first
-   completes undisturbed hasn't been done on real hardware yet. A real user
-   report (see "A failed artifact delete left no trace..." below) is
-   consistent with a real lock collision happening on `GPIOTest`, and
-   surfaced/fixed a real gap in how that failure was reported - but without
-   a log trace from the old code, that specific incident can't be confirmed
-   as lock contention after the fact, so this item stays open.
+5. ~~The new global `flock` lock in `common.sh`~~ - **confirmed** on real
+   hardware (see "The global `flock` lock, confirmed under genuine
+   concurrency..." above): a deep scan held the lock for nearly 9 minutes
+   while two chained requests from a second tab were both correctly
+   refused and logged, and the carve itself finished cleanly (`exit 0`,
+   359 candidates) completely undisturbed.
 6. **The new superfloppy-media branch in `sdcard_scan.sh`** (see "Destination
    dropdown never populated..." above) - confirmed the classification logic
    against a synthetic device tree shaped like one, but an actual USB stick
@@ -2147,3 +2217,10 @@ Confirmed working end-to-end:
     on real hardware (see "The real cause of the failed delete..." above):
     `git update-index --chmod=+x` corrected the tracked mode, and a real
     retest on `GPIOTest` afterward deleted a real artifact successfully.
+20. **The progress-bar red/failed state** (see "The progress bar always
+    turned green, even on failure..." above) - the `setProgress()`/
+    `xhr.onload`/`xhr.onerror` changes and the new `.sdcr-progress-fail`
+    CSS were reasoned through directly against the existing (confirmed
+    real) always-green behavior, but an actual failed command on real
+    hardware - confirming the bar turns red instead of green - has not
+    been done yet.

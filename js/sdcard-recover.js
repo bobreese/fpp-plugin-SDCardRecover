@@ -30,12 +30,22 @@
     function $(sel) { return document.querySelector(sel); }
     function $all(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
 
-    function setProgress(id, active) {
+    // state: true (in progress - blue, animated), false (done - green),
+    // 'fail' (finished with a real error - red), or null (hidden).
+    // Found from a real user question: this used to only ever take a plain
+    // boolean, and every caller passed `false` the instant a request's HTTP
+    // response finished - before anything checked the real exit code inside
+    // it - so the bar turned green on a failed mount, a failed carve, even a
+    // genuine network error (xhr.onerror also passed `false`). It looked
+    // identical to success in every failure case; only the log text below it
+    // ever said otherwise.
+    function setProgress(id, state) {
         var el = document.getElementById(id);
         if (!el) return;
-        el.style.display = active === null ? 'none' : 'block';
-        el.classList.toggle('sdcr-progress-active', !!active);
-        el.classList.toggle('sdcr-progress-done', active === false);
+        el.style.display = state === null ? 'none' : 'block';
+        el.classList.toggle('sdcr-progress-active', state === true);
+        el.classList.toggle('sdcr-progress-done', state === false);
+        el.classList.toggle('sdcr-progress-fail', state === 'fail');
     }
 
     function enableStep(stepEl) {
@@ -96,7 +106,6 @@
             }
         };
         xhr.onload = function () {
-            setProgress(progressId, false);
             // xhr.status is just "did the HTTP request succeed" - always 200
             // here regardless of what the wrapped shell script actually
             // exited with. scripts_dispatch.php now appends a parseable
@@ -115,10 +124,13 @@
             } else {
                 exitOk = (xhr.status === 200);
             }
+            // Progress bar itself now reflects the real result too, not
+            // just the log text underneath it - see setProgress() above.
+            setProgress(progressId, exitOk ? false : 'fail');
             onDone(exitOk, text);
         };
         xhr.onerror = function () {
-            setProgress(progressId, false);
+            setProgress(progressId, 'fail');
             onDone(false, logEl.textContent);
         };
         xhr.send(body);

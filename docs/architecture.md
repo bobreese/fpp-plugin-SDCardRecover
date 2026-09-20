@@ -11,9 +11,29 @@ a long-poll `xhr.onprogress` diff, not WebSocket/SSE) the same way Copy
 Settings and the Remote Backups page do. Note: FPP's real backup pages
 don't show a numeric percentage - what looks like "progress" there is the
 live log text. This plugin's progress bars are indeterminate ("working..."
-animation) while a step streams, turning solid on completion, since
-there's no byte-accurate source to compute a true percentage from
-fsck/rsync/photorec output.
+animation) while a step streams, since there's no byte-accurate source to
+compute a true percentage from fsck/rsync/photorec output - but they do
+turn solid on completion, and the color of that solid state is meaningful,
+not decorative (`setProgress()` in `js/sdcard-recover.js`,
+`.sdcr-progress-*` in `css/sdcard-recover.css`):
+
+- **Blue, animated** (`sdcr-progress-active`) - request in flight.
+- **Green, solid** (`sdcr-progress-done`) - the command's real exit code
+  (the `SDCR_EXITCODE:<n>` marker `scripts_dispatch.php` appends, not
+  just the HTTP response completing) was `0`.
+- **Red, solid** (`sdcr-progress-fail`) - the command exited nonzero, or
+  the request itself failed at the network level (`xhr.onerror`). Found
+  from a real user question, since this state didn't exist before: every
+  caller used to report completion as a plain boolean, set the instant
+  the HTTP response finished and *before* the real exit code was even
+  checked - so a failed mount, a failed carve, or a dropped connection
+  all turned the bar green, identically to success. The log text
+  underneath was the only thing that ever said otherwise.
+
+Not every step has a bar at all - `delete_artifact` (Recovery Artifacts)
+passes no `progressId` to `streamCommand()`, so nothing here applies to
+it; failure there is surfaced through an `alert()` instead (see
+`docs/testing.md`).
 
 ## pluginInfo.json schema (confirmed against live FPP v10.x source)
 

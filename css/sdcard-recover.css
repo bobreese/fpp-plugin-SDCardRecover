@@ -92,6 +92,11 @@
     animation: sdcr-stripe 1.2s linear infinite;
 }
 .sdcr-progress-done .sdcr-progress-fill { background: var(--bs-success); }
+/* Same --bs-danger accent .sdcr-danger text already uses - a failed
+   command (real nonzero exit, or the request itself erroring out) used to
+   turn this bar green, same as success, with only the log text below it
+   saying otherwise. See setProgress() in js/sdcard-recover.js. */
+.sdcr-progress-fail .sdcr-progress-fill { background: var(--bs-danger); }
 @keyframes sdcr-stripe {
     from { background-position: 200% 0; }
     to { background-position: 0 0; }
