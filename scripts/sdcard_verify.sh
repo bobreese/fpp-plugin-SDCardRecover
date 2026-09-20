@@ -64,10 +64,38 @@ TARGET_DIRS=(
 SKIP_FILES_RELATIVE=(
     "home/fpp/media/config/cape-eeprom.bin"
 )
+
+# Found in fpp-data review: this plugin's OWN scratch state
+# (config/plugin.SDCardRecover/ - $STATE_DIR in common.sh) lives inside
+# config/ like any other plugin's settings, so it was being walked and
+# verified right along with everything else. If the SOURCE card also had
+# this plugin installed (or was itself "this device" for a completely
+# unrelated SDCardRecover session at some point), that directory holds a
+# STALE manifest.tsv and possibly old zips from that unrelated session -
+# not real recoverable data, and never something a user restoring "Config"
+# actually wants. Worse: restoring the config category would rsync that
+# stale manifest.tsv straight over THIS session's own live $MANIFEST, and
+# since runRecover() (js/sdcard-recover.js) runs every selected destination
+# sequentially in one Recover click, a zip/usb destination checked
+# alongside local Config would then read the just-clobbered, unrelated
+# manifest instead of this session's own - copying the wrong files, or
+# none at all. Excluded here, at the source, so it can never enter the
+# manifest under any category (config, zip, or usb all pull from the same
+# manifest) rather than special-casing every destination that consumes it.
+SKIP_DIR_PREFIXES_RELATIVE=(
+    "home/fpp/media/config/plugin.SDCardRecover/"
+)
+
 is_skipped_file() {
     local rel="$1"
+    local skip
     for skip in "${SKIP_FILES_RELATIVE[@]}"; do
         [ "$rel" = "$skip" ] && return 0
+    done
+    for skip in "${SKIP_DIR_PREFIXES_RELATIVE[@]}"; do
+        case "$rel" in
+            "$skip"*) return 0 ;;
+        esac
     done
     return 1
 }

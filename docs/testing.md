@@ -1191,6 +1191,53 @@ excluded, unrelated destination shown), post-Mount (same, via
 `sdcr.partition`), and a plain unrelated destination with no source disk
 in play (still shown, no false-positive regression).
 
+## Restoring Config could import the source card's own copy of this plugin's scratch state (found in fpp-data review)
+
+This plugin's own scratch directory, `config/plugin.SDCardRecover/` (=
+`$STATE_DIR` in `common.sh`, holding `manifest.tsv` and any zips not yet
+downloaded), lives inside `config/` exactly like any other plugin's own
+settings - so `sdcard_verify.sh`'s recursive walk of `home/fpp/media/config`
+verified it right along with everything else, with nothing distinguishing
+it from real, wanted configuration.
+
+That is a problem specifically because the SOURCE card can have its own
+copy of this exact directory - either because this same plugin was once
+installed on that card too, or because that card was itself "this device"
+for a completely unrelated SDCardRecover session at some point - holding a
+manifest.tsv and zips from that unrelated session, not real recoverable
+user data. Restoring the `config` category locally would rsync that stale
+`manifest.tsv` straight over **this session's own live `$MANIFEST`** at
+the exact same path (`sdcard_recover.sh`'s local-restore rsync writes into
+`/home/fpp/media/`, and `$STATE_DIR` is `/home/fpp/media/config/plugin.SDCardRecover`
+- the two are literally the same directory). Since `runRecover()`
+(`js/sdcard-recover.js`) runs every checked destination sequentially in
+one Recover click, checking **local** (with Config) alongside **zip** or
+**usb** meant the second destination's `sdcard_recover.sh` invocation
+would read whatever the first one had just overwritten `$MANIFEST` with -
+the unrelated card's old file list, not this session's - and copy the
+wrong files, or none. Even without that specific ordering, any of the
+three destinations (local, zip, usb) could bundle the source card's old
+zips/carved output as if they were real recovered data, since none of
+them filter by anything more specific than "is this file marked OK in the
+manifest."
+
+Fixed at the source rather than special-casing every destination that
+consumes the manifest: extended `sdcard_verify.sh`'s existing
+`is_skipped_file()` (previously only an exact-match list, used for
+`cape-eeprom.bin` - see the "Categories cross-checked..." section above)
+with a second, prefix-based list, `SKIP_DIR_PREFIXES_RELATIVE`, and added
+`config/plugin.SDCardRecover/` to it. Everything under that path -
+`manifest.tsv`, any zips, a `carved/` subdirectory - now never enters the
+manifest under any category, so it can never be selected for local
+restore, bundled into a zip, or copied to a USB destination, regardless
+of restore order. Verified the exclusion logic directly against seven
+cases before committing: both flagged paths (the exact `cape-eeprom.bin`
+match and anything under the new prefix, including a nested `carved/`
+file) correctly skipped, and three lookalikes - a `config/co-general.json`
+file that merely starts with the same two letters, a *different* plugin's
+own `config/plugin.OtherPlugin/` directory, and the top-level `settings`
+file - all correctly still verified normally.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1276,3 +1323,10 @@ Confirmed working end-to-end:
    partition as a destination on real hardware and confirming the refusal
    fires (rather than just trusting the synthetic/direct verification)
    has not been done yet.
+9. **The `config/plugin.SDCardRecover/` exclusion in `sdcard_verify.sh`**
+   (see "Restoring Config could import the source card's own copy of this
+   plugin's scratch state..." above) - the skip logic itself was verified
+   directly against real and lookalike paths, but the actual scenario
+   (a source card that itself has this plugin's scratch directory present,
+   verified, and confirmed absent from the resulting manifest on real
+   hardware) has not been exercised yet.

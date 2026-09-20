@@ -30,7 +30,9 @@ scripts/
   sdcard_fsck_repair.sh  Explicit opt-in only: fsck -y (destructive)
   sdcard_verify.sh       Core step: read-test every config/media file (dirs
                          AND the standalone settings/timezone files), skip
-                         cape-eeprom.bin, write manifest
+                         cape-eeprom.bin and this plugin's own
+                         config/plugin.SDCardRecover/ scratch state on the
+                         source card, write manifest
   sdcard_carve.sh        Deep-scan fallback: photorec raw signature carving
   sdcard_evaluate.sh     Step 4: recoverable size vs. local free space
   sdcard_recover.sh      Step 5: local = category-selective, restores
