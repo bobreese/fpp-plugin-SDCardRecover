@@ -14,7 +14,8 @@
             "minFPPVersion": "10.0",
             "maxFPPVersion": "0",
             "branch": "main",
-            "sha": ""
+            "sha": "",
+            "platforms": ["Raspberry Pi", "BeagleBone Black", "BeagleBone 64"]
         }
     ],
     "dependencies": {

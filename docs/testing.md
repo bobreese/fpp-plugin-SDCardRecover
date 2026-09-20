@@ -1238,6 +1238,40 @@ file that merely starts with the same two letters, a *different* plugin's
 own `config/plugin.OtherPlugin/` directory, and the top-level `settings`
 file - all correctly still verified normally.
 
+## No `platforms` restriction - Installable (and broken) on platforms this plugin cannot run on (found in fpp-data review)
+
+`pluginInfo.json`'s `versions[0]` entry never declared `platforms`.
+Confirmed against the real, current `PLUGININFO_FORMAT.md`: leaving it
+unset means an entry matches *every* platform FPP reports via
+`/etc/fpp/platform` - including the FPP builds for generic Linux
+(Fedora) and native macOS, not just the Debian-based SBC images
+(Raspberry Pi, BeagleBone) this plugin was actually written for. On those
+unsupported platforms, this plugin would have shown as a normal,
+Installable card in the Plugin Manager - `pluginInfo.json` itself gave no
+signal that anything was wrong - and then failed partway through
+install: `fpp_install.sh` calls `apt-get` directly (no such thing on
+Fedora or macOS), and every script in `scripts/` depends on `lsblk`,
+`blockdev`, `findmnt`, `mount`, `fsck.*`, and `/mnt` existing and
+behaving the way they do on a Debian-based image. In practice, the
+`testdisk` entry in `dependencies.packages` would have failed the
+install outright first, with an FPP-level error to that effect ("does
+not support system packages") rather than this plugin's own code ever
+running - a confusing failure for anyone on an unsupported platform
+who had no way to know before clicking Install.
+
+Fixed by adding `"platforms": ["Raspberry Pi", "BeagleBone Black",
+"BeagleBone 64"]` to the `versions[0]` entry - the exact platform strings
+`PLUGININFO_FORMAT.md`'s table requires, matched exactly since FPP
+compares them as plain strings against `/etc/fpp/platform`. Deliberately
+narrower than everywhere this plugin could plausibly work: nothing in the
+code is Pi-specific, and Armbian/Debian/Ubuntu Hosts are all apt-based
+and would likely work too, but none of them have actually been tested,
+and declaring support is also a commitment to field bug reports from
+whatever's declared. Raspberry Pi and BeagleBone are the two platform
+families this plugin has actually been built and tested against - see
+[Installing This Plugin](installing.md#supported-platforms) for the
+same reasoning written up for an installer, not a reviewer.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:

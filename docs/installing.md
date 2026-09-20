@@ -12,6 +12,25 @@ the Host - pick whichever spare or replacement device you're using for
 recovery based on what FPP version *it's* running, independent of what
 version the damaged card came from.
 
+## Supported platforms
+
+`pluginInfo.json` declares `"platforms": ["Raspberry Pi", "BeagleBone
+Black", "BeagleBone 64"]` - the Host running this plugin has to be one of
+those, checked by FPP against `/etc/fpp/platform`. Without that
+declaration, this plugin would show as Installable on every platform FPP
+runs on, including the FPP-on-generic-Linux and FPP-on-macOS builds where
+it cannot actually work: `fpp_install.sh` shells out to `apt-get`
+directly, and every script depends on `lsblk`, `blockdev`, `findmnt`,
+`mount`, and the `fsck.*` family being present the way they are on a
+Debian-based SBC image - installing there would have looked fine in the
+Plugin Manager and then failed partway through (`testdisk`'s
+`dependencies.packages` entry alone fails outright with "does not support
+system packages" on a platform without `apt`). Raspberry Pi and
+BeagleBone are the two platform families this plugin has actually been
+built and tested against; Armbian/Debian/Ubuntu Hosts are likely fine too
+(same apt-based toolchain, nothing Pi-specific in the code) but are not
+declared, since nothing here has been run on one yet.
+
 ## Before you install: know which scenario you're in
 
 ### Scenario A - it's this device's own card that failed (the common case)
