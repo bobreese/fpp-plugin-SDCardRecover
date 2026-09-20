@@ -107,4 +107,19 @@ walk($data["blockdevices"] ?? [], $rootDev, $mediaDev);
 echo "$SCAN_OUTPUT" | grep -v '^NOTE: '
 echo "$SCAN_OUTPUT" | grep '^NOTE: ' | while IFS= read -r note; do log "$note"; done
 
+# Persist what was actually found, not just the two log() bookends around
+# it - found from a real user question comparing a live scan's raw output
+# against the downloaded log file and noticing the device list itself was
+# missing. Uses log_file_only() (common.sh), not log(), so this doesn't
+# also re-echo to stdout and duplicate/corrupt the raw-JSON stream the
+# browser's JS parses above.
+if [ -n "$SCAN_OUTPUT" ]; then
+    log_file_only "Scan found:"
+    echo "$SCAN_OUTPUT" | grep -v '^NOTE: ' | while IFS= read -r line; do
+        [ -n "$line" ] && log_file_only "  $line"
+    done
+else
+    log_file_only "Scan found: no removable candidates."
+fi
+
 log "Scan complete."

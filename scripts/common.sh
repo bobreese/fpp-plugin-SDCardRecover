@@ -171,6 +171,23 @@ log() {
     echo "$line" >> "$LOG_FILE"
 }
 
+# Same timestamp format as log(), but appends to $LOG_FILE only - never
+# echoes to stdout. Found from a real user question: sdcard_scan.sh's own
+# device/partition JSON lines are printed with a plain `echo`, not log(),
+# specifically so the browser-facing stream stays raw JSON the JS can
+# JSON.parse() line-by-line - a log()-style "[timestamp] {...}" line would
+# just fail that parse. That also meant those lines never reached
+# $LOG_FILE at all, unlike every other message this plugin logs - a
+# downloaded log bundle had no record of what a scan actually found, which
+# is exactly the data most useful for diagnosing "why didn't my drive show
+# up" after the fact. This lets a script persist that record without
+# re-echoing it to stdout and duplicating (or corrupting) the live stream.
+log_file_only() {
+    local line
+    line="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    echo "$line" >> "$LOG_FILE"
+}
+
 # Found in fpp-data review: LOCKFILE was declared above and never actually
 # used - nothing stopped two browser tabs (or two people on the network)
 # from running mount/fsck/rsync against the shared $MOUNTPOINT/$MANIFEST/

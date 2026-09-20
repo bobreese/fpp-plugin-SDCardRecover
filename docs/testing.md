@@ -1335,6 +1335,41 @@ to the UI anyway - a `blockdev --setrw` racing a card that gets physically
 unplugged between `umount` and this call is not a failure worth aborting
 cleanup over.
 
+## A scan's own results never reached the persistent log file (real bug, found by a user comparing the two)
+
+A user noticed that the raw device/partition JSON lines visible in a live
+scan (`{"device":"/dev/sda", ...}`, one per line) simply were not present
+in the downloaded `plugin-fpp-plugin-SDCardRecover.log` - only the
+`log()`-produced "Scanning for removable USB storage.../Scan complete."
+bookends around them were.
+
+Root cause, confirmed by re-reading `sdcard_scan.sh`'s own recent history:
+those lines are printed with a plain `echo`, not `log()`, deliberately -
+the browser-facing stream has to stay raw, unprefixed JSON that
+`js/sdcard-recover.js`'s `parseScanLines()` can `JSON.parse()`
+line-by-line; a `log()`-style `"[timestamp] {...}"` line would fail that
+parse. `log()` is also the only thing that ever appends to `$LOG_FILE` -
+so a scan's actual findings, unlike every other message this plugin logs,
+never reached the persistent log at all. This had been silently
+hampering troubleshooting through this exact round of real-hardware
+testing: several earlier sessions in this doc had to be diagnosed from
+raw `dmesg`/`lsblk` snapshots in FPP's own `troubleshootingCommands.log`
+specifically *because* the plugin's own log never recorded what a scan
+had actually found - the single most useful piece of information for
+"why didn't my drive show up," missing from every log bundle sent so far.
+
+Fixed by adding `log_file_only()` to `common.sh` - the same timestamp
+format as `log()`, but appending to `$LOG_FILE` only, never echoing to
+stdout - and using it in `sdcard_scan.sh` to persist a `"Scan found:"`
+block listing every line of that scan's real output (device and
+partition entries alike), separately from the raw stream the browser
+already gets. Verified directly before committing: fed the exact device
+lines from the report that surfaced this (a real `sda`/`sda1`/`sda2` plus
+`sdc`/`sdc1` scan) through both the stdout path and the new logging
+path - stdout came back unchanged, still valid, parseable JSON per line
+(no duplication, no corruption), and the log file gained the full,
+timestamped device listing it had never had before.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1432,3 +1467,9 @@ Confirmed working end-to-end:
     session..." above) - not yet confirmed on real hardware that a card
     actually comes back block-layer writable (`blockdev --getro` reporting
     `0`) after a normal Cleanup or an uninstall with the card still attached.
+11. **`log_file_only()` and `sdcard_scan.sh`'s new "Scan found:" block**
+    (see "A scan's own results never reached the persistent log file..."
+    above) - verified directly by replaying the exact device lines a real
+    scan produced through both the stdout and logging paths, but a fresh
+    scan run for real on the Pi, followed by actually downloading the log
+    bundle and confirming the device list is there, has not been done yet.
