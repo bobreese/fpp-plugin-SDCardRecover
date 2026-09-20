@@ -1585,6 +1585,66 @@ checking both at once) without remounting would silently lose that
 protection. Not reported as a problem and not touched here, to avoid
 trading a confirmed real bug for a new, subtler one.
 
+## photorec was scanning the boot partition, not the disk, and its own log wasn't landing anywhere findable (real bug, real hardware)
+
+The fixed `fileopt` list above was necessary but not sufficient - a
+second, independent bug in the same invocation. A user retested deep
+scan after that fix and reported two things: the raw photorec terminal
+output streamed live but never appeared in the plugin's own persistent
+log, and (more importantly, visible directly in that same raw output)
+photorec's own on-screen partition table showed it operating on
+`1 P FAT32 LBA ... [boot]` - the tiny boot partition, not the actual
+ext4 media partition where any real recoverable data would be. `/log`
+also never produced a `photorec.log` anywhere inside `$OUTDIR`.
+
+Both traced to the real photorec/testdisk source rather than assumed:
+
+- **Wrong partition, confirmed via `src/phcli.c` and `src/photorec.c`.**
+  `menu_photorec_cli()`'s own initialization -
+  `params->partition=(list_part->next!=NULL ? list_part->next->part :
+  list_part->part);` - defaults to the *first real partition* on the
+  disk whenever one exists. `init_list_part()` (`src/photorec.c`) does
+  insert a synthetic "Whole disk" partition (offset 0, spanning the
+  entire disk) ahead of the real ones specifically so it can be
+  selected - but the CLI's own default selection logic skips straight
+  past it. That synthetic partition's `order` field is left at its
+  default, `NO_ORDER` (`src/common.h`: `#define NO_ORDER 255`, confirmed
+  never reassigned anywhere after creation), and `phcli.c`'s digit-based
+  selection command (`else if(isdigit(params->cmd_run[0]))`) matches a
+  partition by exactly this field. Neither `sdcard_carve.sh`'s original
+  `/cmd` string nor the fixed one from the previous finding ever
+  supplied this selector, so both silently scanned only the small boot
+  partition - never the media partition - regardless of the fileopt fix.
+- **Missing log, confirmed via the real `photorec.8` man page**: `/log`
+  is documented as "create a photorec.log file," with no path control -
+  it writes relative to the process's current working directory, not to
+  `/d`'s destination. `sdcard_carve.sh` never changed directory before
+  invoking photorec, so the log landed wherever the script's own ambient
+  working directory happened to be - not inside `$OUTDIR`, where every
+  message in the plugin's own log told the user to look, and not
+  visible in the plugin's own persistent log either, since it is
+  photorec's own file, entirely outside the `log()` mechanism.
+
+Fixed both: added `255,` as the first token in the `/cmd` string,
+explicitly selecting the "Whole disk" pseudo-partition instead of
+relying on the wrong default - the correct behavior for a tool meant to
+recover from a card whose filesystem may be damaged or unmountable in
+the first place, not just carve within whatever partition happens to be
+listed first. Wrapped the `photorec` call in a subshell that `cd`s into
+`$OUTDIR` first, so its `/log` output lands there, next to the carved
+files, matching where the script's own messages already point. Adjusted
+the candidate-file count to exclude `photorec.log` now that it lives
+inside the same directory being counted, and added an explicit `log()`
+line stating the scan targets the whole disk, so that fact is visible
+in the plugin's persistent log without needing to parse photorec's own
+raw terminal output.
+
+Verified the subshell/exit-code mechanics directly before committing:
+a successful run's exit code propagates out through the subshell
+correctly, a `cd` failure exits the subshell (not the whole script) with
+status 1, and the candidate count correctly excludes `photorec.log`
+while still counting real carved output.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1693,14 +1753,16 @@ Confirmed working end-to-end:
     a hard refresh (see the stale-JS testing gotcha above), the offer
     rendered and "Run deep scan" ran successfully, which is what surfaced
     the next finding below.
-13. **The fixed `fileopt` extension list in `sdcard_carve.sh`** (see
-    "photorec's `fileopt` extension list silently disabled every real
-    file type..." above) - each token was individually confirmed against
-    photorec's real source, but an actual carve run with the corrected
-    command line, against real jpg/mp3/mov/png/riff test data deliberately
+13. **The fixed `fileopt` extension list AND the `255,` whole-disk
+    selector in `sdcard_carve.sh`** (see "photorec's `fileopt` extension
+    list silently disabled every real file type..." and "photorec was
+    scanning the boot partition, not the disk..." above) - every token
+    and the partition selector were each individually confirmed against
+    photorec's real source, but an actual carve run with both fixes in
+    place, against real jpg/mp3/mov/png/riff test data deliberately
     placed on a card, confirming files actually come back this time, has
-    not been done yet - only the previous, broken configuration has
-    actually been run on real hardware so far.
+    not been done yet - only the two successively-broken configurations
+    have actually been run on real hardware so far.
 14. **The auto-unmount-before-scan fix in `runScan()`** (see "I have to
     unplug and replug the reader every time..." above) - the unmount ->
     scan call ordering was verified with a stubbed `streamCommand`, but a

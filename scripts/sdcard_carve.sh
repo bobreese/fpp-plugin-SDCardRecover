@@ -66,12 +66,52 @@ log "depending on card size; progress below is photorec's own log output."
 # limitation of the whole approach, not a configuration mistake. See
 # docs/testing.md and docs/how-it-works.md for this spelled out for an
 # operator, not just a future maintainer of this script.
-photorec /log /d "$OUTDIR" /cmd "$DEV" \
-    fileopt,everything,disable,mp3,enable,riff,enable,mov,enable,jpg,enable,png,enable,search
+# "255," selects the "Whole disk" pseudo-partition before the fileopt/
+# search commands run - found on real hardware, confirmed against
+# photorec's own source, and just as serious as the fileopt bug above.
+# Without it, photorec's own CLI init (src/phcli.c:
+# `params->partition=(list_part->next!=NULL ? list_part->next->part :
+# list_part->part);`) silently defaults to the FIRST REAL partition on
+# the disk - confirmed live: photorec's own on-screen partition table
+# showed it scanning "1 P FAT32 LBA ... [boot]", the small boot
+# partition, never the actual ext4 media partition where real
+# recoverable files would be. `src/photorec.c`'s `init_list_part()`
+# inserts a synthetic "Whole disk" partition (offset 0, spanning the
+# entire disk) ahead of the real ones in the sorted list specifically so
+# it CAN be selected - but the CLI's own default selection logic skips
+# straight past it to the first real partition whenever one exists.
+# That synthetic partition's `->order` field is left at its default,
+# `NO_ORDER` (`src/common.h`: `#define NO_ORDER 255` - confirmed never
+# reassigned by `new_whole_disk()` or anything after it), and
+# `src/phcli.c`'s own digit-handling command (`else if(isdigit(...))`)
+# selects a partition by matching exactly this field - so "255" as the
+# first command explicitly overrides the wrong default and searches the
+# entire disk, ignoring partition boundaries, which is the actually
+# correct behavior for recovering from a card whose filesystem may be
+# damaged or unmountable in the first place.
+log "Deep scan will search the whole disk ($DEV), not just its first partition - see this script's own comments for why that distinction needed an explicit fix."
+
+# Run inside $OUTDIR so photorec's own /log output (photorec.log) lands
+# there too, next to the carved files - confirmed against the real
+# photorec.8 man page ("/log: create a photorec.log file") that it writes
+# relative to the process's current directory, not /d's destination.
+# Found from a real user report: without this, /log silently wrote
+# nowhere near $OUTDIR, leaving an empty output directory with no trace
+# of photorec's own run even existing.
+(
+    cd "$OUTDIR" || exit 1
+    photorec /log /d "$OUTDIR" /cmd "$DEV" \
+        255,fileopt,everything,disable,mp3,enable,riff,enable,mov,enable,jpg,enable,png,enable,search
+)
 
 RC=$?
-FOUND=$(find "$OUTDIR" -type f | wc -l)
+# Excludes photorec.log itself now that it lands inside $OUTDIR too (see
+# above) - otherwise it would count as its own "candidate file carved".
+FOUND=$(find "$OUTDIR" -type f -not -name 'photorec.log' | wc -l)
 log "Deep scan complete (exit $RC). $FOUND candidate file(s) carved to $OUTDIR."
+if [ -f "$OUTDIR/photorec.log" ]; then
+    log "photorec's own detailed log is at $OUTDIR/photorec.log."
+fi
 log "Carved files have generic names (photorec cannot recover original paths);"
 log "review them before moving into your show's media folders."
 exit $RC
