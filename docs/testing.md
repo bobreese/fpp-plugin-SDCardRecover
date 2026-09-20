@@ -739,9 +739,30 @@ plugin manifest can fix. Applied the same workaround already in place for
 `e2fsprogs`/`dosfstools`/`exfatprogs`/`rsync`: moved `zip` out of
 `dependencies.packages` and into `fpp_install.sh`'s untracked,
 install-if-missing block (`command -v zip || MISSING+=("zip")`), and added
-it to the existing `download` `systemChanges` entry. `testdisk` stays
-tracked - nothing found suggests FPP core or another plugin uses it, so
-reference-counted removal is the correct behavior for it specifically.
+it to the existing `download` `systemChanges` entry (later removed
+entirely - see "Privacy block over-declared..." below, once §6.2 turned
+up showing that entry was never needed in the first place). `testdisk`
+stays tracked - nothing found suggests FPP core or another plugin uses
+it, so reference-counted removal is the correct behavior for it
+specifically.
+
+**Confirmed live, and worth understanding rather than being alarmed by**:
+upgrading a real `GPIOTest` install through this exact change (from a
+version with `zip` still in `dependencies.packages` to one without) shows
+FPP's Plugin Manager print `No longer declared by 'fpp-plugin-SDCardRecover':
+zip.`, then run `apt-get remove zip` on its own, entirely on FPP's own
+initiative - the same reference-counted removal this whole fix exists to
+avoid, firing exactly once, triggered by the *diff* between the plugin's
+old and new declared dependencies rather than anything ongoing. `fpp_install.sh`
+runs immediately afterward in that same upgrade transaction and its own
+`command -v zip || MISSING+=("zip")` check catches the now-missing binary
+and reinstalls it right back, so the box ends the upgrade with `zip`
+present either way - confirmed in that same log (`SDCard Recover plugin
+installed`, `rc=0` throughout). This remove-then-reinstall churn is a
+one-time artifact of crossing *this specific* version boundary, not a
+recurring problem - a plugin manifest that declares a package once and
+never un-declares it doesn't trigger FPP's "no longer declared" path at
+all, which is exactly the steady state this plugin is in from here on.
 
 ## Read-only mount wasn't a kernel guarantee for every filesystem (found in fpp-data review)
 
