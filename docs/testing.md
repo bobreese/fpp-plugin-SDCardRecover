@@ -1912,6 +1912,68 @@ pre-log failure - and whether the fix above actually produces a
 `log()`ged refusal and a visible `alert()` the next time a real lock
 collision happens on real hardware.
 
+## The real cause of the failed delete: the script itself was never executable (real bug, confirmed on real hardware)
+
+Direct follow-on from the section above, and worth being honest about how
+it played out: lock contention was a reasonable guess given the evidence
+at the time (no trace anywhere in the log), but it was wrong. The actual
+cause was much simpler, and the alert-on-failure fix from the section
+above is exactly what surfaced it - a real user hard-refreshed, retried
+the same delete, and this time got a real `alert()` with real content
+instead of silence:
+
+```
+Delete failed for "SDCardRecover-20260920-095624.zip":
+
+sudo: /home/fpp/media/plugins/fpp-plugin-SDCardRecover/scripts/sdcard_delete_artifact.sh: command not found
+```
+
+(A manually-typed, misremembered path tried over SSH first produced a
+similar-looking but subtly different error and briefly pointed the
+investigation the wrong way - worth flagging as its own small testing
+gotcha: always get the *exact*, copy-pasted error text, from the actual
+UI, not a retyped approximation, before treating a path in an error
+message as evidence of anything.)
+
+The path in the real `alert()` was exactly correct - confirmed against
+`ls -la /home/fpp/media/plugins/` on `GPIOTest` - which meant `sudo`
+itself disagreed that a script at a real, existing path was runnable.
+`sudo` (and `execve()` generally) reports a non-executable target the
+same way it reports a missing one - "command not found," not "Permission
+denied" - a well-known point of confusion, not a sign the path was wrong.
+That pointed at the executable bit, and `git ls-files -s scripts/`
+confirmed it directly: every script in `scripts/` is tracked at mode
+`100755` except one -
+
+```
+100644 ... scripts/sdcard_delete_artifact.sh
+```
+
+`sdcard_delete_artifact.sh` was committed without the executable bit when
+it was first added (the "Added: Recovery Artifacts section" change). Git
+tracks the executable bit as part of the tree itself, independent of
+whatever the committing machine's filesystem shows - it checks out
+exactly as recorded on the target machine, `chmod` and all. On a real
+Linux box, that meant the file always landed as `-rw-r--r--`, never
+runnable by `sudo`, regardless of anything about locking, logging, or the
+allowlist regex - **the Delete button has never worked on real hardware,
+since the feature was first added**, and no amount of retrying, hard
+refreshing, or waiting out a lock could have fixed it, because none of
+those were ever the actual problem.
+
+Fixed with `git update-index --chmod=+x scripts/sdcard_delete_artifact.sh`,
+correcting the tracked mode to `100755` to match every other script here.
+
+Worth being clear about what the previous section's fixes still did and
+didn't do: they didn't cause or fix this bug, but the log-ordering and
+`alert()` changes are the entire reason this got diagnosed at all instead
+of staying invisible forever - the user's retest under the *old* code
+would have shown nothing, same as the very first report.
+
+**Not yet validated**: an actual successful delete on real hardware with
+the executable bit fixed - confirming the button now removes the file and
+the artifacts list updates, closing out item 15 below for real this time.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -2053,12 +2115,15 @@ Confirmed working end-to-end:
     device-letter change). The card became visible again purely from the
     software unmount, with the reader never physically touched - exactly
     the scenario this fix was for.
-15. **The Recovery Artifacts section** (see "Added: Recovery Artifacts
-    section..." above) - the listing/render/delete-request logic was
-    verified directly (regex allowlist, JS render/delete flow in a real
-    browser engine), but an actual delete of a real root-owned
-    `carved.N` directory on real hardware, confirming `sudo rm -rf`
-    succeeds and the list updates afterward, has not been done yet.
+15. **The Recovery Artifacts section's actual delete action.** Not just
+    "not yet tested" - confirmed broken on real hardware (see "The real
+    cause of the failed delete..." above): `sdcard_delete_artifact.sh` was
+    committed without its executable bit, so the Delete button has never
+    worked on any real (non-Windows) checkout since the feature was added.
+    Fixed (`git update-index --chmod=+x`), but an actual successful delete
+    with the bit corrected - confirming the button now removes a real
+    root-owned artifact and the list updates afterward - has not been done
+    yet.
 16. **The `stream.php` header-ordering fix** (see "`stream.php`'s own
     `Content-Type` header silently never applied..." above) - the root
     cause was traced directly against FPP's real `www/common.php` and
@@ -2066,15 +2131,21 @@ Confirmed working end-to-end:
     fix landed, confirming `apache2-error.log` no longer gets a
     `headers already sent` warning on every wizard action, has not been
     done yet.
-17. **The artifact-delete logging/error-visibility fix** (see "A failed
-    artifact delete left no trace anywhere a user would think to look..."
-    above) - the `common.sh` log-ordering change and the delete button's
-    new `(ok, text)` handling were both reasoned through against the real
-    code path that produced the original report, but neither has been
-    re-tested against a real lock collision or a real failed delete on
-    actual hardware yet.
+17. ~~The delete button's `(ok, text)` error-visibility fix~~ - **confirmed**
+    on real hardware, sooner than expected: it's the reason "The real
+    cause of the failed delete..." above could be diagnosed at all. A real
+    retry on `GPIOTest` produced a real `alert()` with the actual streamed
+    `sudo: ...: command not found` text, exactly as designed, where the
+    old code would have shown nothing. The other half of that same fix -
+    `common.sh`'s log-ordering change for a genuine lock-contention
+    refusal specifically - is still unconfirmed, since that was never what
+    this particular failure turned out to be.
 18. **`carve` and `fsck_repair`'s `streamCommand` callbacks ignoring
     `(ok, text)`** (see the "gap this doesn't close" note in the same
     section above) - same shape of bug as the delete button had, found
     while fixing that one, deliberately left unfixed here as out of
     scope for the report that surfaced it.
+19. **The `sdcard_delete_artifact.sh` executable-bit fix** (see "The real
+    cause of the failed delete..." above) - `git update-index --chmod=+x`
+    corrects the tracked mode, but hasn't been re-tested on real hardware
+    yet to confirm the Delete button actually works now.
