@@ -1970,9 +1970,10 @@ didn't do: they didn't cause or fix this bug, but the log-ordering and
 of staying invisible forever - the user's retest under the *old* code
 would have shown nothing, same as the very first report.
 
-**Not yet validated**: an actual successful delete on real hardware with
-the executable bit fixed - confirming the button now removes the file and
-the artifacts list updates, closing out item 15 below for real this time.
+**Confirmed**: a real retest on `GPIOTest` with the executable bit fixed
+deleted the leftover recovery zip successfully - the Delete button works
+end to end for the first time since the Recovery Artifacts section was
+added. Closes out items 15 and 19 below.
 
 ## Validated on real hardware
 
@@ -2115,15 +2116,12 @@ Confirmed working end-to-end:
     device-letter change). The card became visible again purely from the
     software unmount, with the reader never physically touched - exactly
     the scenario this fix was for.
-15. **The Recovery Artifacts section's actual delete action.** Not just
-    "not yet tested" - confirmed broken on real hardware (see "The real
-    cause of the failed delete..." above): `sdcard_delete_artifact.sh` was
-    committed without its executable bit, so the Delete button has never
-    worked on any real (non-Windows) checkout since the feature was added.
-    Fixed (`git update-index --chmod=+x`), but an actual successful delete
-    with the bit corrected - confirming the button now removes a real
-    root-owned artifact and the list updates afterward - has not been done
-    yet.
+15. ~~The Recovery Artifacts section's actual delete action~~ - **confirmed**
+    on real hardware: with the executable bit fixed (see item 19 below),
+    a real retest on `GPIOTest` deleted the leftover recovery zip
+    successfully. The full arc - broken since the feature was first added
+    (see "The real cause of the failed delete..." above), diagnosed via a
+    real user report, fixed, and now confirmed working - is closed.
 16. **The `stream.php` header-ordering fix** (see "`stream.php`'s own
     `Content-Type` header silently never applied..." above) - the root
     cause was traced directly against FPP's real `www/common.php` and
@@ -2145,7 +2143,7 @@ Confirmed working end-to-end:
     section above) - same shape of bug as the delete button had, found
     while fixing that one, deliberately left unfixed here as out of
     scope for the report that surfaced it.
-19. **The `sdcard_delete_artifact.sh` executable-bit fix** (see "The real
-    cause of the failed delete..." above) - `git update-index --chmod=+x`
-    corrects the tracked mode, but hasn't been re-tested on real hardware
-    yet to confirm the Delete button actually works now.
+19. ~~The `sdcard_delete_artifact.sh` executable-bit fix~~ - **confirmed**
+    on real hardware (see "The real cause of the failed delete..." above):
+    `git update-index --chmod=+x` corrected the tracked mode, and a real
+    retest on `GPIOTest` afterward deleted a real artifact successfully.
