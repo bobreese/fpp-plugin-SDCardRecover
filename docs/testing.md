@@ -2041,12 +2041,18 @@ Confirmed working end-to-end:
     correctly reported 359 candidate file(s) - the first nonzero count
     that session - with no `STRAY_DIRS` warning, meaning no leftover
     sibling directory was created.
-14. **The auto-unmount-before-scan fix in `runScan()`** (see "I have to
-    unplug and replug the reader every time..." above) - the unmount ->
-    scan call ordering was verified with a stubbed `streamCommand`, but a
-    real end-to-end retest (mount a card, reload the page without
-    replugging anything, click Scan, confirm it shows up without needing
-    a physical replug) has not been done yet.
+14. ~~The auto-unmount-before-scan fix in `runScan()`~~ (see "I have to
+    unplug and replug the reader every time..." above) - **confirmed**
+    from the same real `GPIOTest` session (2026-09-20): the plugin log
+    shows three separate `sdcard_unmount.sh` -> `sdcard_scan.sh` chains,
+    each finding the card again immediately afterward (07:33:06, 07:43:08,
+    09:44:56). Cross-checked against `logs/syslog.log` for all three -
+    none show a matching `USB disconnect`/`New USB device found` pair,
+    unlike a real replug elsewhere in the same session (06:56:54, a clean
+    disconnect/reconnect that explains that session's own `sda`->`sdb`
+    device-letter change). The card became visible again purely from the
+    software unmount, with the reader never physically touched - exactly
+    the scenario this fix was for.
 15. **The Recovery Artifacts section** (see "Added: Recovery Artifacts
     section..." above) - the listing/render/delete-request logic was
     verified directly (regex allowlist, JS render/delete flow in a real
