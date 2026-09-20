@@ -2116,6 +2116,58 @@ way `validate_device()`'s callers do. All 9 touched scripts pass
 confirming its actual `ERROR:` text now shows up in a downloaded log
 bundle - not just the generic exit-code bookends.
 
+## Config restore racing a live `fppd` - attempted, genuinely inconclusive (real hardware)
+
+Item 4 below (see "Config restore wrote straight to disk with fppd
+possibly still running, no restart flag" above for the original finding
+and the `restartFlag` mitigation) is a genuine timing race, not something
+reproducible on demand through the UI the way the sibling-partition guard
+or the flock lock were. Three real attempts on `GPIOTest` rather than
+leave it purely theoretical:
+
+1. Restored Config locally while, in a second browser tab, changing
+   FPP's global log levels (Info -> Debug) as close to simultaneously as
+   manually possible. Result: `HostName = Pi3Test` (the restore landed
+   correctly) and every `LogLevel_*` field showed the new value cleanly.
+2. Repeated the same restore, timed as tightly as manageable by hand
+   after restoring `GPIOTest` back to a clean pre-test state first.
+   Result: same clean restore, this time with no `LogLevel_*` fields
+   present at all - consistent with the *source card's own* settings
+   file simply never having them set, not with any collision.
+3. A related but different race: started an FPP File Copy Backup to a
+   second device (reading `GPIOTest`'s files) and clicked the plugin's
+   local Config restore (writing to those same files) while it was
+   running - a concurrent read/write race, not `fppd`'s own write/write
+   race specifically. The resulting backup showed `HostName = Pi3Test` -
+   a clean, consistent read of the fully-restored file, not a torn or
+   partial one.
+
+None of the three caught anything wrong - but watching the restore's own
+`rsync --progress` output live during attempt 1 showed why that's not
+surprising, and corrected an assumption made going into this: `settings`
+was transferred **first** (`xfr#1 of 27`), not last, despite being
+appended to the end of the shell script's own file list (`rsync
+--files-from` does not reliably preserve source-list order for transfer)
+- and the entire operation, config backup through `restartFlag`, is fast
+enough that its own logged start/finish timestamps are identical to the
+second. That is a genuinely sub-second write window. Landing a
+manually-timed browser click, or even a short scripted loop, inside a
+window that narrow, by chance, across three attempts, isn't strong
+evidence either way - three misses are exactly what you'd expect whether
+the race is real or not, given how small the actual target is.
+
+**Honest status**: not proven unsafe (no corruption observed across three
+real attempts) and not proven safe either (a sub-second window that's
+hard to hit by hand isn't the same as a window that doesn't exist).
+`restartFlag` remains the real, shipped mitigation for normal use - it
+shrinks the risk window and makes the "restart before trusting what's
+loaded" step hard to miss, which is what it was always meant to do. The
+underlying race itself stays a real, understood, but essentially
+unfalsifiable-by-hand risk without tooling built specifically to
+synchronize the two operations (e.g. a wrapper pausing `sdcard_recover.sh`
+mid-`rsync`, or `fppd` instrumented to log exactly when it re-reads and
+patches the settings file).
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -2183,7 +2235,12 @@ Confirmed working end-to-end:
    path) instead of a raw `rsync` straight to disk - see the section above.
    `restartFlag` is set now, which shrinks the risk window, but doesn't
    change that fppd could in principle still be running when the write
-   happens. A real architectural change, not yet attempted.
+   happens. A real architectural change, still not attempted. Separately,
+   the underlying race itself (not this fix) got three real attempts on
+   real hardware - see "Config restore racing a live `fppd`..." above -
+   genuinely inconclusive: no corruption caught, but the write window was
+   confirmed sub-second, which makes three manual attempts weak evidence
+   either way, not a real test of whether this specific fix is needed.
 5. ~~The new global `flock` lock in `common.sh`~~ - **confirmed** on real
    hardware (see "The global `flock` lock, confirmed under genuine
    concurrency..." above): a deep scan held the lock for nearly 9 minutes
