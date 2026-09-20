@@ -1419,6 +1419,18 @@ unreadable-files-only card, and the plural `2 directories` case) -
 the real case now correctly surfaces the warning and reveals the
 deep-scan offer, and none of the existing behaviors changed.
 
+**Confirmed on the real hardware that surfaced this**: re-ran Verify
+against the same corrupted `sequences` directory with the fix deployed.
+The log now reads exactly as designed - the `WARNING: could not fully
+list home/fpp/media/sequences - find: '...': Bad message` line, the
+`Verification complete: 12 readable, 0 unreadable, 12 total files. 1
+directory could not be fully listed - see warnings above.` summary, and
+the multi-line deep-scan `NOTE:` all appear, in place of the old
+falsely-clean "0 unreadable" result. The one piece not yet independently
+confirmed is the UI side specifically - that the deep-scan offer button
+actually renders visibly in the browser from this real output, as
+opposed to just the log text being correct.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1522,12 +1534,11 @@ Confirmed working end-to-end:
     scan produced through both the stdout and logging paths, but a fresh
     scan run for real on the Pi, followed by actually downloading the log
     bundle and confirming the device list is there, has not been done yet.
-12. **The `DIRS_WITH_ERRORS` fix in `sdcard_verify.sh`/`js/sdcard-recover.js`**
-    (see "A corrupted directory's files vanished from the count instead of
-    showing as unreadable..." above) - the failure mode itself is
-    thoroughly confirmed on real hardware (that's how it was found), and
-    the fix was verified directly against a synthetic `find` failure and
-    the real log text from this session, but re-running Verify against
-    that same corrupted `sequences` directory with the fix actually
-    deployed, and confirming the warning and deep-scan offer both appear
-    for real, has not been done yet.
+12. **The deep-scan offer actually rendering from the `DIRS_WITH_ERRORS`
+    fix** (see "A corrupted directory's files vanished from the count
+    instead of showing as unreadable..." above) - the bash-side fix
+    (the `WARNING` line and the new summary clause) is now confirmed on
+    the real hardware that surfaced this bug. The one piece still open is
+    the UI side specifically: that `#sdcr-deepscan-offer` actually becomes
+    visible in the browser from this real output, not just that the log
+    text and JS regex are correct in isolation.
