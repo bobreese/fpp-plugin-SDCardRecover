@@ -2044,9 +2044,15 @@ section, which described the animation but never the color meanings
 (there was no third meaning to describe until now), was updated to
 document all three states.
 
-**Not yet validated**: an actual failed command on real hardware (a
-deliberately-bad device argument, or a genuine mid-carve interruption)
-confirming the bar actually turns red instead of green.
+**Confirmed** on real hardware: removed the source card after Scan but
+before clicking Mount, so `sdcard_mount_ro.sh`'s own `validate_device()`
+correctly failed (`ERROR: /dev/sda2 is not a block device`, `exit 1`).
+The fsck-fallback box appeared as designed, and - once past a false start
+caused by the stale-JS-tab gotcha above (the first attempt, before a real
+`Ctrl+Shift+R`, still showed green; same plugin update, same real
+`exit 1` server-side, different result, which is itself further
+confirmation of what that gotcha actually does) - Step 2's progress bar
+turned solid red.
 
 ## Validated on real hardware
 
@@ -2217,10 +2223,8 @@ Confirmed working end-to-end:
     on real hardware (see "The real cause of the failed delete..." above):
     `git update-index --chmod=+x` corrected the tracked mode, and a real
     retest on `GPIOTest` afterward deleted a real artifact successfully.
-20. **The progress-bar red/failed state** (see "The progress bar always
-    turned green, even on failure..." above) - the `setProgress()`/
-    `xhr.onload`/`xhr.onerror` changes and the new `.sdcr-progress-fail`
-    CSS were reasoned through directly against the existing (confirmed
-    real) always-green behavior, but an actual failed command on real
-    hardware - confirming the bar turns red instead of green - has not
-    been done yet.
+20. ~~The progress-bar red/failed state~~ - **confirmed** on real hardware
+    (see "The progress bar always turned green, even on failure..."
+    above): a real `mount_ro` failure (card removed after Scan, before
+    Mount) turned Step 2's bar solid red, matching the fsck-fallback box
+    that correctly appeared alongside it.
