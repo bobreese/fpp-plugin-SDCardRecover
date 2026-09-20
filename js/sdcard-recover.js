@@ -322,12 +322,28 @@
     function runVerify() {
         streamCommand('verify', {}, 'sdcr-log-mount', 'sdcr-progress-mount', function (ok, text) {
             var m = text.match(/Verification complete: (\d+) readable, (\d+) unreadable, (\d+) total/);
+            // Found on real hardware, deliberately corrupting a directory's
+            // own entries: sdcard_verify.sh's find can hit a directory it
+            // can no longer list (ext4 metadata-checksum catching the
+            // damage, "Bad message") - those files never show up as
+            // unreadable, they just silently never get counted at all, so
+            // the sentence above alone would report a falsely-clean "0
+            // unreadable" while real data was inaccessible. Parsed as a
+            // separate, additive match (see sdcard_verify.sh's own comment
+            // on why it's appended rather than inserted into the existing
+            // sentence) so this doesn't disturb the main regex above.
+            var dirErr = text.match(/(\d+) directory could not be fully listed|(\d+) directories could not be fully listed/);
+            var dirErrCount = dirErr ? parseInt(dirErr[1] || dirErr[2], 10) : 0;
             var summary = $('#sdcr-verify-summary');
             summary.style.display = 'block';
             if (m) {
                 summary.innerHTML = '<strong>' + m[1] + '</strong> readable / <strong>' + m[2] +
-                    '</strong> unreadable out of ' + m[3] + ' files checked.';
-                if (parseInt(m[2], 10) > 0) {
+                    '</strong> unreadable out of ' + m[3] + ' files checked' +
+                    (dirErrCount > 0 ? ' - <strong class="sdcr-danger">' + dirErrCount +
+                        ' director' + (dirErrCount === 1 ? 'y' : 'ies') +
+                        ' could not be fully listed</strong>, so these counts do not include everything on the card' : '') +
+                    '.';
+                if (parseInt(m[2], 10) > 0 || dirErrCount > 0) {
                     $('#sdcr-deepscan-offer').style.display = 'block';
                 }
             }

@@ -1370,6 +1370,55 @@ path - stdout came back unchanged, still valid, parseable JSON per line
 (no duplication, no corruption), and the log file gained the full,
 timestamped device listing it had never had before.
 
+## A corrupted directory's files vanished from the count instead of showing as unreadable (real bug, real hardware)
+
+Deliberate real-hardware test to exercise the deep-scan/carving path
+(previously one of this plugin's least-tested corners): rather than
+damaging file *content*, corrupted a directory's own entries directly -
+`debugfs -R "stat /home/fpp/media/sequences" /dev/sda2` to find the
+directory's own data block, then `dd if=/dev/urandom of=/dev/sda2
+bs=4096 count=1 seek=<that block>` to scramble it, leaving every file
+that had been listed there physically untouched elsewhere on the card.
+
+The card still mounted fine (only one directory's metadata was touched,
+not the superblock or journal), but `find` hit the damage:
+`find: '/mnt/DamagedSD/home/fpp/media/sequences': Bad message` -
+`EBADMSG`, ext4's own directory-entry checksum feature correctly
+detecting the corruption and refusing to return garbage entries as if
+they were real. `sdcard_verify.sh` walks each category with
+`find "$dir" -type f -print0` piped straight into a `while read` loop and
+never checked `find`'s own exit status or stderr - so the files that had
+been in that directory did not come back `UNREADABLE` (that only happens
+to a file `find` actually discovers and then fails to `dd`-read); they
+just silently never appeared to `find` at all, and were never counted as
+anything. The result: `Verification complete: 12 readable, 0 unreadable,
+12 total files.` - a falsely clean report, on a card that had just lost
+an entire directory's worth of accessible data. The deep-scan offer,
+gated on `unreadableFiles > 0`, would not have appeared on its own
+either, even though raw signature carving is exactly the tool for this
+case (it doesn't depend on directory structure at all).
+
+Fixed by capturing `find`'s stderr per directory in `sdcard_verify.sh`:
+a non-empty capture logs an explicit `WARNING: could not fully list
+<dir> - <find's own error> - ...` and increments a new
+`DIRS_WITH_ERRORS` counter, reported as an additive clause appended
+*after* the existing `Verification complete: ...` sentence (not inserted
+into it, so `js/sdcard-recover.js`'s established regex against that
+sentence keeps matching unchanged). `runVerify()` parses that new clause
+separately and now shows the deep-scan offer if *either* the unreadable
+count *or* the directory-error count is nonzero, with the summary line
+itself calling out the directory failure explicitly rather than staying
+silent about it.
+
+Verified both sides before committing: the bash counting/logging logic
+against a synthetic `find` failure shaped exactly like the real
+`Bad message` case, and the JS regex/UI logic in a real browser engine
+against the actual log text from this session (`1 directory could not be
+fully listed`) alongside three regression cases (a normal clean card, an
+unreadable-files-only card, and the plural `2 directories` case) -
+the real case now correctly surfaces the warning and reveals the
+deep-scan offer, and none of the existing behaviors changed.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1473,3 +1522,12 @@ Confirmed working end-to-end:
     scan produced through both the stdout and logging paths, but a fresh
     scan run for real on the Pi, followed by actually downloading the log
     bundle and confirming the device list is there, has not been done yet.
+12. **The `DIRS_WITH_ERRORS` fix in `sdcard_verify.sh`/`js/sdcard-recover.js`**
+    (see "A corrupted directory's files vanished from the count instead of
+    showing as unreadable..." above) - the failure mode itself is
+    thoroughly confirmed on real hardware (that's how it was found), and
+    the fix was verified directly against a synthetic `find` failure and
+    the real log text from this session, but re-running Verify against
+    that same corrupted `sequences` directory with the fix actually
+    deployed, and confirming the warning and deep-scan offer both appear
+    for real, has not been done yet.

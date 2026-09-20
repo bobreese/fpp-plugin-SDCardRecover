@@ -116,6 +116,7 @@ TARGET_FILES=(
 TOTAL=0
 GOOD=0
 BAD=0
+DIRS_WITH_ERRORS=0
 
 verify_one_file() {
     local f="$1"
@@ -153,9 +154,29 @@ for rel in "${TARGET_DIRS[@]}"; do
     dir="$MOUNTPOINT/$rel"
     [ -d "$dir" ] || continue
     log "Verifying $rel ..."
+    # Found on real hardware, deliberately corrupting a directory's own
+    # entries (not a file's content) to test the deep-scan fallback:
+    # `find` hit the damage and printed "find: '<dir>': Bad message" to its
+    # own stderr - but nothing here was checking that. The files that were
+    # in that directory didn't come back UNREADABLE, they just silently
+    # never appeared to `find` at all, so they were never counted as
+    # anything - not readable, not unreadable, just absent from every
+    # total. A card in that state reported a clean "0 unreadable," which
+    # is actively misleading: real data was inaccessible through the
+    # filesystem, and the deep-scan offer (gated on unreadable-file count)
+    # would not have appeared on its own to suggest the one path
+    # (raw signature carving) that doesn't depend on directory structure
+    # at all. Captured separately so a directory-level failure is reported
+    # as its own, explicit thing instead of silently vanishing.
+    FIND_ERR=$(mktemp)
     while IFS= read -r -d '' f; do
         verify_one_file "$f"
-    done < <(find "$dir" -type f -print0)
+    done < <(find "$dir" -type f -print0 2>"$FIND_ERR")
+    if [ -s "$FIND_ERR" ]; then
+        DIRS_WITH_ERRORS=$((DIRS_WITH_ERRORS+1))
+        log "WARNING: could not fully list $rel - $(tr '\n' ' ' < "$FIND_ERR") - files in this category may exist on the card but be undiscoverable by a normal directory walk. Counts below do not include them."
+    fi
+    rm -f "$FIND_ERR"
 done
 
 for rel in "${TARGET_FILES[@]}"; do
@@ -165,12 +186,29 @@ for rel in "${TARGET_FILES[@]}"; do
     verify_one_file "$f"
 done
 
-log "Verification complete: $GOOD readable, $BAD unreadable, $TOTAL total files."
+# Kept as its own trailing clause, appended after the existing sentence
+# rather than inserted into it, so js/sdcard-recover.js's established
+# regex against "$GOOD readable, $BAD unreadable, $TOTAL total" keeps
+# matching unchanged - this is parsed separately, as an addition, not a
+# replacement.
+if [ "$DIRS_WITH_ERRORS" -gt 0 ]; then
+    if [ "$DIRS_WITH_ERRORS" -eq 1 ]; then
+        DIR_WORD="directory"
+    else
+        DIR_WORD="directories"
+    fi
+    log "Verification complete: $GOOD readable, $BAD unreadable, $TOTAL total files. $DIRS_WITH_ERRORS $DIR_WORD could not be fully listed - see warnings above."
+else
+    log "Verification complete: $GOOD readable, $BAD unreadable, $TOTAL total files."
+fi
 log "Manifest written to $MANIFEST"
 
-if [ "$BAD" -gt 0 ]; then
-    log "NOTE: files marked UNREADABLE were skipped, not copied. Consider the"
-    log "deep-scan (raw carving) mode to attempt recovery of these by signature."
+if [ "$BAD" -gt 0 ] || [ "$DIRS_WITH_ERRORS" -gt 0 ]; then
+    log "NOTE: files marked UNREADABLE were skipped, not copied, and any"
+    log "directory that could not be fully listed may hide more that were"
+    log "never counted at all. Consider the deep-scan (raw carving) mode -"
+    log "it works directly against the card's raw data and does not depend"
+    log "on directory structure being intact."
 fi
 
 exit 0
