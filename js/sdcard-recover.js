@@ -282,10 +282,33 @@
         return bytes.toFixed(1) + ' ' + units[i];
     }
 
+    // Found from a real user report: sdcard_unmount.sh's own header comment
+    // has always claimed it runs "when the user re-scans, picks a different
+    // device, or finishes a recovery run" - but nothing ever actually called
+    // it. A card mounted at Step 2 stayed mounted at $MOUNTPOINT indefinitely,
+    // across page reloads and new sessions, since nothing here ever ran the
+    // 'unmount' command. sdcard_scan.sh correctly (by design) excludes an
+    // already-mounted disk from its results, so the SAME card that was used
+    // last session stayed invisible to a fresh Scan - looking exactly like a
+    // detection failure. Confirmed on real hardware: every dmesg capture
+    // showing "it works after I unplug and replug the reader" also showed
+    // "EXT4-fs (sdX2): shut down requested" immediately after the physical
+    // disconnect - the replug wasn't fixing a USB problem, it was forcing the
+    // kernel to tear down the stale mount that a proper unmount call should
+    // have cleared already. Unmounting first, unconditionally, on every Scan/
+    // Rescan click matches that documented original intent: this is Step 1's
+    // own "start looking for a source card" action, and re-running it is a
+    // reasonable signal that whatever was mounted before is being abandoned.
+    // Deliberately NOT applied to refreshUsbDestinations() below, which
+    // shares the same 'scan' backend command but must never touch the
+    // already-mounted source while the user is only looking for a
+    // destination drive.
     function runScan() {
-        streamCommand('scan', {}, 'sdcr-log-scan', 'sdcr-progress-scan', function (ok, text) {
-            renderDeviceList(text.split('\n'));
-            $('#sdcr-btn-rescan').style.display = 'inline-block';
+        streamCommand('unmount', {}, 'sdcr-log-scan', null, function () {
+            streamCommand('scan', {}, 'sdcr-log-scan', 'sdcr-progress-scan', function (ok, text) {
+                renderDeviceList(text.split('\n'));
+                $('#sdcr-btn-rescan').style.display = 'inline-block';
+            });
         });
     }
 

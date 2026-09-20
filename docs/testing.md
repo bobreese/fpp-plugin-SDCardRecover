@@ -1533,6 +1533,58 @@ most want back. Updated `status.php`'s deep-scan offer text,
 implying deep scan covers "FPP's own file types" in general, which it
 never fully did.
 
+## "I have to unplug and replug the reader every time" was a stale mount, not a hardware quirk (real bug, real hardware)
+
+A user reported needing to physically remove and reinsert the USB SD
+card reader every time they started a new session, or the card would
+not show up in Step 1's Scan. Initial hypothesis was a hardware/USB
+issue (autosuspend, boot-time enumeration timing, power budget - all
+real, well-documented Raspberry Pi USB quirks) - but the actual `dmesg`
+evidence pointed somewhere else entirely: every single capture showing
+"it works after I replug it" also showed `EXT4-fs (sdX2): shut down
+requested (2)` immediately after the `USB disconnect` line - the kernel
+forcibly tearing down a mount because the device was physically yanked
+out from under it, not a fresh, clean enumeration solving anything.
+
+Root cause: `scripts/sdcard_unmount.sh`'s own header comment has always
+claimed it runs "when the user re-scans, picks a different device, or
+finishes a recovery run" - but nothing in `js/sdcard-recover.js` ever
+actually called the `unmount` backend command, anywhere. A card mounted
+at Step 2 stayed mounted at `$MOUNTPOINT` indefinitely - across page
+reloads, across entirely new sessions, until something forced it off.
+`sdcard_scan.sh` correctly, by design, excludes an already-mounted disk
+from its results (that guard is real and intentional - see the earlier
+sibling-partition and root-device-guard findings). So the *same* card
+used in a previous session stayed invisible to a fresh Scan, looking
+exactly like a detection failure, when the actual state was "still
+mounted from before, and correctly hidden as already in use." Unplugging
+the reader "fixed" it purely as a side effect - the forced disconnect is
+what actually cleared the stale mount, not anything about the USB
+enumeration itself succeeding where it had failed before.
+
+Fixed by finally wiring up what the header comment always claimed:
+`runScan()` now calls `unmount` and waits for it to complete before
+calling `scan`, so every Step 1 Scan/Rescan click starts from a
+guaranteed-clean state regardless of what a previous session left
+mounted. Deliberately scoped to `runScan()` only, not
+`refreshUsbDestinations()` (Step 5's "Refresh," which shares the same
+`scan` backend command but must never touch the source while the user is
+only looking for a destination drive) - confirmed the two functions stay
+independent before committing. Verified the call ordering itself (unmount
+strictly before scan, result still flows through to the rendered device
+list) with a stubbed `streamCommand` in a real browser JS engine.
+
+**Deliberately not done in this same pass**: the header comment's third
+claimed trigger, "finishes a recovery run," was not wired up. Unlike
+starting a fresh scan, auto-unmounting right after Recover completes has
+a real downside - `sdcard_recover.sh`'s sibling-partition guard (see
+above) and its same-partition check are both gated on `$MOUNTPOINT`
+actually being mounted; a user running a second Recover pass afterward
+(e.g., zip first, then usb as a separate follow-up action rather than
+checking both at once) without remounting would silently lose that
+protection. Not reported as a problem and not touched here, to avoid
+trading a confirmed real bug for a new, subtler one.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1649,3 +1701,9 @@ Confirmed working end-to-end:
     placed on a card, confirming files actually come back this time, has
     not been done yet - only the previous, broken configuration has
     actually been run on real hardware so far.
+14. **The auto-unmount-before-scan fix in `runScan()`** (see "I have to
+    unplug and replug the reader every time..." above) - the unmount ->
+    scan call ordering was verified with a stubbed `streamCommand`, but a
+    real end-to-end retest (mount a card, reload the page without
+    replugging anything, click Scan, confirm it shows up without needing
+    a physical replug) has not been done yet.

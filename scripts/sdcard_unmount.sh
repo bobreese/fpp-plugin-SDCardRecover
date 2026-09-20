@@ -1,6 +1,22 @@
 #!/bin/bash
-# Cleanup: unmount DamagedSD. Called when the user re-scans, picks a different
-# device, or finishes a recovery run.
+# Cleanup: unmount DamagedSD.
+#
+# Found from a real user report: this comment used to claim this script
+# runs "when the user re-scans, picks a different device, or finishes a
+# recovery run" - none of that was actually true. Nothing in
+# js/sdcard-recover.js ever called it, so a card mounted at Step 2 stayed
+# mounted indefinitely, across page reloads and new sessions, until
+# something else forced it off - which is exactly what physically
+# unplugging the card did, as an unintended side effect (confirmed via
+# dmesg: every "USB disconnect" was immediately followed by "EXT4-fs
+# (sdX2): shut down requested"). A fresh Scan correctly, by design, hides
+# an already-mounted disk, so the same card used last session looked like
+# a detection failure instead of what it actually was: still mounted from
+# before. Only the "re-scans" case is wired up now (js/sdcard-recover.js's
+# runScan() calls this before every Scan/Rescan click) - "finishes a
+# recovery run" deliberately is not, since sdcard_recover.sh's
+# sibling-partition guard depends on $MOUNTPOINT staying mounted for a
+# possible follow-up Recover pass; see docs/testing.md for that tradeoff.
 source "$(dirname "$0")/common.sh"
 
 if mountpoint -q "$MOUNTPOINT"; then
