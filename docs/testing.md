@@ -1272,6 +1272,48 @@ families this plugin has actually been built and tested against - see
 [Installing This Plugin](installing.md#supported-platforms) for the
 same reasoning written up for an installer, not a reviewer.
 
+## `blockdev --setro` was never reversed after a normal (non-repair) session (found in fpp-data review, on our own earlier fix)
+
+`blockdev --setro` (added in an earlier fpp-data-review round to make the
+read-only source mount a real kernel guarantee, not just a mount option -
+see "Read-only mount wasn't a kernel guarantee..." above) was only ever
+reversed in one place: `sdcard_fsck_repair.sh`, right before its own
+explicit, user-confirmed write. Every other path - a normal Scan -> Mount
+-> Verify -> Evaluate -> Recover session with no repair needed, or
+uninstalling the plugin outright - left the card block-layer read-only in
+the running kernel indefinitely, for as long as it stayed physically
+plugged in. Fair to call this one on us: we added `--setro` in the first
+place, so reversing it everywhere the mount ends is the same fix's other
+half, not a separate pre-existing bug.
+
+Not a correctness problem for this plugin itself - it never intends to
+write to the source card at all outside the explicit repair path, so the
+flag being "stuck" set never breaks anything this plugin does. The real
+issue is for anything else on the box: if the card is left plugged in
+after a session (or the plugin is uninstalled while it's still attached),
+some other tool or script - a manual `dd`, another plugin, a shell command
+over SSH - could try to write to that same device and fail with no
+obvious reason why, since `blockdev --getro` isn't something anyone would
+think to check first.
+
+Fixed by releasing the flag everywhere a normal session actually ends:
+
+- `sdcard_unmount.sh` (Cleanup - called when the user re-scans, picks a
+  different device, or finishes a recovery run) now captures
+  `findmnt -n -o SOURCE "$MOUNTPOINT"` before unmounting and runs
+  `blockdev --setrw` on it afterward.
+- `fpp_uninstall.sh` does the same for `/mnt/DamagedSD` specifically (not
+  `/mnt/SDCardRecoverDest`, which is always mounted read-write and never
+  gets `--setro` in the first place) - covering the case where the card is
+  still attached when the plugin is removed and nothing would otherwise
+  ever release it.
+
+Both are best-effort (`2>/dev/null || true`), matching this plugin's own
+established convention for cleanup steps that cannot signal failure back
+to the UI anyway - a `blockdev --setrw` racing a card that gets physically
+unplugged between `umount` and this call is not a failure worth aborting
+cleanup over.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -1364,3 +1406,8 @@ Confirmed working end-to-end:
    (a source card that itself has this plugin's scratch directory present,
    verified, and confirmed absent from the resulting manifest on real
    hardware) has not been exercised yet.
+10. **The `blockdev --setrw` reversal in `sdcard_unmount.sh`/`fpp_uninstall.sh`**
+    (see "`blockdev --setro` was never reversed after a normal (non-repair)
+    session..." above) - not yet confirmed on real hardware that a card
+    actually comes back block-layer writable (`blockdev --getro` reporting
+    `0`) after a normal Cleanup or an uninstall with the card still attached.

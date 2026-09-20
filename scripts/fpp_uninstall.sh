@@ -25,7 +25,19 @@ source "$(dirname "$0")/common.sh" 2>/dev/null || true
 
 for mp in /mnt/DamagedSD /mnt/SDCardRecoverDest; do
     if mountpoint -q "$mp" 2>/dev/null; then
+        src=$(findmnt -n -o SOURCE "$mp" 2>/dev/null)
         umount "$mp"
+        # Found in fpp-data review: only /mnt/DamagedSD ever gets a
+        # blockdev --setro (sdcard_mount_ro.sh) - /mnt/SDCardRecoverDest is
+        # always mounted read-write - and it was only ever reversed on the
+        # explicit fsck-repair path, not on a normal finish. If the card is
+        # still plugged in when the plugin is uninstalled, it would
+        # otherwise stay block-layer read-only indefinitely, with nothing
+        # left installed to ever release it. See scripts/sdcard_unmount.sh
+        # for the same fix on the normal (non-uninstall) path.
+        if [ "$mp" = "/mnt/DamagedSD" ] && [ -n "$src" ]; then
+            blockdev --setrw "$src" 2>/dev/null || true
+        fi
     fi
     rmdir "$mp" 2>/dev/null || true
 done
