@@ -1431,6 +1431,35 @@ confirmed is the UI side specifically - that the deep-scan offer button
 actually renders visibly in the browser from this real output, as
 opposed to just the log text being correct.
 
+## A stale browser tab can run old JS after a plugin update - not a bug, a testing gotcha
+
+Not a defect in this plugin, but worth writing down since it produced a
+genuinely confusing false negative while testing the `DIRS_WITH_ERRORS`
+fix above: right after updating and re-running Verify, the log clearly
+showed the new server-side behavior (the `WARNING` line, the new summary
+clause), but the page's own rendered summary text and the deep-scan offer
+still showed the *old* behavior, as if the fix hadn't taken effect.
+
+Confirmed against FPP core's real `www/plugin.php`: it generates this
+plugin's `<script src="plugin.php?plugin=...&file=js/sdcard-recover.js&nopage=1">`
+tag with no cache-busting (no `?ref=<filemtime>` the way FPP's own core
+JS/CSS files get) and its `file=` handler sends no `Cache-Control` or
+`ETag` header on the response either. A browser tab that was already open
+across a plugin update just keeps running whatever JS it loaded when the
+page was last opened - nothing about updating the files on disk causes an
+already-open tab to go fetch the new copy, and there's no cache-busting
+to force a fresh fetch even on a plain reload in some browsers. This is a
+gap in FPP core's plugin-loading mechanism, not something fixable from
+this plugin's own code.
+
+**For any future JS-touching change**: hard-refresh (`Ctrl+Shift+R`) or
+fully close and reopen the page after updating, before concluding a fix
+didn't work. The bash/server-side scripts never have this problem -
+`sudo`-invoked scripts always run whatever is currently on disk, no
+caching concept applies to them - so a log showing new behavior while the
+page's own rendering doesn't is close to a decisive tell that this is
+what's going on, not a real regression.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
