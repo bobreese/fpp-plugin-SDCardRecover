@@ -1948,6 +1948,54 @@ after running, and a real `photorec`/`sdcard_carve.sh` failure (e.g. a
 device unplugged mid-carve). Both are harder to trigger deliberately
 than the delete-button lock-contention case was.
 
+## Pulling the reader mid-carve - attempted, genuinely inconclusive (real hardware)
+
+Deliberate real-hardware attempt at the `runCarve()` half of item 18
+above: corrupted `home/fpp/media/sequences`'s own directory block on the
+same real source card used for earlier tests (`debugfs -R "stat
+/home/fpp/media/sequences" /dev/sda2` to find its data block under
+`EXTENTS:`, then `dd if=/dev/urandom of=/dev/sda2 bs=4096 count=1
+seek=<that block>` to scramble it - same method as "A corrupted
+directory's files vanished from the count..." above), which correctly
+produced the `1 directory could not be fully listed` warning and
+revealed the "Run deep scan" button. Started a deep scan of the whole
+63 GB disk, watched real progress climb in the live log (`png: 8
+recovered`, `riff: 9 recovered`, over 200 files found), then physically
+pulled the USB SD-card reader from `GPIOTest` about 70 seconds in.
+
+The disconnect itself was completely real, confirmed in `syslog`:
+
+```
+11:37:05  sd 0:0:0:0: [sda] tag#0 ... I/O error, dev sda, sector 6870848 op READ ...
+11:37:05  Buffer I/O error on dev sda, logical block 858856, async page read
+          (repeated across many more sectors)
+11:37:06  sda: detected capacity change from 124735488 to 0
+11:37:06  udisksd: ... Failed to assign the new context to disk '/dev/sda': No medium found
+```
+
+But `sdcard_carve.sh` still finished cleanly about 47 seconds later:
+`Deep scan complete (exit 0). 326 candidate file(s) carved`. `photorec`
+itself apparently treated the sudden loss of readable sectors as having
+reached the end of scannable data rather than as a fatal error, and
+returned exit 0 regardless - so `$?` genuinely was `0`, and `runCarve()`'s
+new `(ok, text)` failure-alert code (see the section above) never had a
+reason to fire. Not a bug in this plugin's own handling - `RC=$?`
+faithfully captured photorec's real exit code - but a real limitation on
+testing it this way: a resilient carving tool built to work through bad
+sectors doesn't reliably surface "the device disappeared" as a failure
+exit code the way `fsck -y` or a simpler script would.
+
+**Honest status**: same shape as "Config restore racing a live `fppd`..."
+below - a real attempt, real evidence gathered (the disconnect
+genuinely happened, at the kernel level, mid-scan), but it didn't
+exercise the code path it set out to test. `runCarve()`'s failure
+branch remains unvalidated on real hardware; `runFsckRepair()`'s
+entirely so. A more promising angle for next time: interrupt much
+earlier in a longer-running scan (this 63 GB whole-disk scan finished
+in under 90 seconds against a mostly-empty test card, far faster than
+photorec's own early "2h58m" estimate suggested, leaving a narrower
+window than expected to react in).
+
 ## The real cause of the failed delete: the script itself was never executable (real bug, confirmed on real hardware)
 
 Direct follow-on from the section above, and worth being honest about how
@@ -2623,9 +2671,13 @@ Confirmed working end-to-end:
 18. **`carve` and `fsck_repair`'s `streamCommand` callbacks ignoring
     `(ok, text)`** - fixed (see "`carve` and `fsck_repair` closed the
     same `(ok, text)` gap..." above), same shape and same fix as the
-    delete button's. Not yet validated: neither a real failed `fsck -y`
-    nor a real failed carve has been exercised on real hardware since
-    the fix landed.
+    delete button's. A real attempt was made at the `carve` half (see
+    "Pulling the reader mid-carve - attempted, genuinely inconclusive..."
+    above): a genuine mid-scan USB disconnect, confirmed at the kernel
+    level in `syslog`, still didn't produce a nonzero exit from
+    `sdcard_carve.sh` - `photorec` finished cleanly anyway. Still not
+    validated: `runCarve()`'s failure branch (this attempt didn't hit
+    it), and `runFsckRepair()`'s entirely (not attempted yet).
 19. ~~The `sdcard_delete_artifact.sh` executable-bit fix~~ - **confirmed**
     on real hardware (see "The real cause of the failed delete..." above):
     `git update-index --chmod=+x` corrected the tracked mode, and a real
