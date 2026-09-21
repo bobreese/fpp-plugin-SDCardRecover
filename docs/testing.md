@@ -2202,11 +2202,44 @@ Three changes, all in `js/sdcard-recover.js` (plus a one-line hint in
   state machine, since it's synchronous: `next(i + 1)` genuinely doesn't
   run until the user clicks OK.
 
-**Not yet validated**: none of this has been exercised on real hardware
-yet - confirming the checkbox limit actually grays out a third choice
-(and un-grays correctly), that zip really does run first and local last
-for both possible orderings (zip+local, zip+usb, usb+local), and that the
-`alert()` genuinely pauses the sequence rather than racing ahead of it.
+**Confirmed** on real hardware - the destination cap, fixed run order,
+and zip-ready `alert()` all worked as expected.
+
+## Added: capped log panels at ~20 lines with a visible scrollbar
+
+Real user report, right after confirming the Step 5 change above worked:
+a long-running command (a big `rsync` or `photorec` run especially) can
+stream enough output that `.sdcr-log` grows tall enough to push the rest
+of the page - including the progress bar sitting right above it - out of
+view, with nothing obviously telling you there's a scrollbar to find.
+
+`.sdcr-log` already had a height cap (`max-height: 220px`) and
+`overflow-y: auto`, so this wasn't a totally uncapped panel - but 220px
+was a guessed pixel value, not tied to an actual line count, and `auto`
+scrollbars are easy to miss depending on OS/browser (some only appear on
+hover, or as a thin overlay). Fixed by giving the panel an explicit
+`line-height: 1.4` and computing the cap from that instead of a guess -
+`max-height: 28em` (1.4 x 20 lines, in `em` so it tracks this element's
+own `font-size` rather than a hardcoded pixel count) - and switching
+`overflow-y` from `auto` to `scroll`, so the scrollbar is always visibly
+present as an affordance rather than only appearing once you've already
+noticed something's cut off. `min-height: 2em` and `max-height` (not a
+fixed `height`) are both kept, so a panel with little or no output yet
+still starts small instead of showing as a big empty box the moment its
+step becomes visible. The existing auto-scroll-to-newest-line behavior
+(`streamCommand()`'s `onprogress` handler) is untouched - this only
+changes how much is visible at once and how obvious it is that there's
+more to scroll back through.
+
+Applied to `.sdcr-log` itself, so it's shared by every log panel in the
+plugin (mount, verify, carve, fsck, recover, artifacts, usb-refresh), not
+special-cased to just the recover page that surfaced it - all of them
+have the same "long streamed output" shape.
+
+**Not yet validated**: not yet confirmed on real hardware that this
+actually keeps the progress bar and the rest of the page in view during
+a genuinely long-running command, the specific complaint that prompted
+it.
 
 ## Validated on real hardware
 
@@ -2395,10 +2428,13 @@ Confirmed working end-to-end:
     failure since this landed, confirming its actual `ERROR:` text now
     appears in a downloaded log bundle instead of just the generic
     `started`/`finished (exit N)` bookends, has not been done yet.
-22. **The Step 5 destination limit, fixed run order, and zip-ready
-    prompt** (see "Added: capped Step 5 at 2 destinations..." above) -
-    reasoned through directly against the existing checkbox/JS structure,
-    but none of the three behaviors (the third checkbox actually graying
-    out, zip running first and local last for real, the `alert()` actually
-    pausing the sequence) has been exercised in a real browser on real
-    hardware yet.
+22. ~~The Step 5 destination limit, fixed run order, and zip-ready
+    prompt~~ - **confirmed** on real hardware (see "Added: capped Step 5
+    at 2 destinations..." above): the cap, the fixed run order, and the
+    `alert()` all worked as expected.
+23. **The `.sdcr-log` line-count cap and always-visible scrollbar** (see
+    "Added: capped log panels at ~20 lines with a visible scrollbar"
+    above) - a real user report drove the change, but the fix itself
+    (line-height-based `max-height`, `overflow-y: scroll`) hasn't been
+    confirmed on real hardware yet to actually keep the rest of the page,
+    including the progress bar, in view during a long-running command.

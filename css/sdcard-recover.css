@@ -77,8 +77,27 @@
    by design, so it doesn't need a --bs-*/--fpp-* token here. */
 .sdcr-log {
     background: #111; color: #ddd; font-family: monospace; font-size: 0.85em;
-    padding: 0.6em; max-height: 220px; overflow-y: auto; white-space: pre-wrap;
+    line-height: 1.4;
+    padding: 0.6em; overflow-y: scroll; white-space: pre-wrap;
     border-radius: 3px; margin-top: 0.5em; min-height: 2em;
+    /* Found from a real user report: a long-running command (a big
+       rsync/photorec run especially) can stream enough output that the
+       panel grows tall enough to push the rest of the page - including
+       the progress bar above it - out of view, with no obvious way to
+       tell there was more to scroll to. Capped at a real line count
+       (line-height * lines, in em so it tracks this element's own
+       font-size rather than a guessed pixel value) instead of an
+       arbitrary max-height, and `scroll` instead of `auto` so the
+       scrollbar is always visibly there as an affordance, not only
+       appearing once you've already noticed something's cut off. Content
+       still auto-scrolls to the newest line as it streams in (see
+       streamCommand()'s onprogress handler in js/sdcard-recover.js) -
+       this only changes how much is visible at once and how obvious it
+       is that older lines are still there to scroll back to. max-height
+       (not height) so a panel with little or no output yet still starts
+       small (min-height above) instead of showing as a big empty box.
+    */
+    max-height: 28em;
 }
 
 .sdcr-progress { margin: 0.5em 0; }
