@@ -74,7 +74,25 @@
 /* Deliberately NOT theme-linked: a terminal-style log panel that's always
    dark, in both themes, same as most code/console UI conventions - this
    isn't a light-mode box that breaks in dark mode, it's a fixed-dark box
-   by design, so it doesn't need a --bs-*/--fpp-* token here. */
+   by design, so it doesn't need a Bootstrap (--bs-) or FPP (--fpp-) token
+   here.
+
+   Real bug, found from a real user report chasing an unrelated Step 5
+   layout complaint: this comment used to name those two variable prefixes
+   back to back, separated only by a forward slash, with no space between
+   the asterisk ending the first prefix's wildcard and that slash. Written
+   out that way, those two characters together are CSS's own comment-close
+   sequence - so THIS comment closed right there, mid-sentence, not at the
+   intended end. Everything after that point, up to the next occurrence of
+   that same two-character sequence (the rest of that sentence, plus this
+   rule's own intended closer), became invalid raw CSS the parser had to
+   recover from - and it recovered by skipping the very next rule, which
+   was .sdcr-log itself. Every other rule in this file was unaffected,
+   since they're either before this point or far enough after that the
+   parser had already resynced - which is exactly why .sdcr-log's dark
+   background, capped height, and visible scrollbar never applied in ANY
+   browser, on ANY device; tab-staleness and caching never had anything to
+   do with it. */
 .sdcr-log {
     background: #111; color: #ddd; font-family: monospace; font-size: 0.85em;
     line-height: 1.4;

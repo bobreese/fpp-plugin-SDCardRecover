@@ -2236,10 +2236,74 @@ plugin (mount, verify, carve, fsck, recover, artifacts, usb-refresh), not
 special-cased to just the recover page that surfaced it - all of them
 have the same "long streamed output" shape.
 
-**Not yet validated**: not yet confirmed on real hardware that this
-actually keeps the progress bar and the rest of the page in view during
-a genuinely long-running command, the specific complaint that prompted
-it.
+**Not yet validated at the time this was written** - see the section
+directly below for what actually happened when it was: the design here
+was correct, but a separate, real, pre-existing bug meant none of it
+ever took effect at all until that bug was found and fixed too.
+
+## `.sdcr-log`'s own dark styling never applied at all - a stray `*/` inside a comment (real bug, predates this whole session)
+
+The line-count cap above looked completely correct by inspection, and
+still is - but confirming it on real hardware turned into one of the
+longest real-hardware investigations in this document, because the
+actual symptom (`#sdcr-log-recover` rendering as a plain white,
+completely uncapped block during a large recover) had nothing to do with
+the change being tested. Ruled out, in order, each with real evidence
+before moving to the next: a stale browser tab (closed and reopened -
+still broken), browser cache (DevTools "Clear site data" - still broken),
+gzip corruption of the served response (`gzip -t` on the raw compressed
+bytes from a real request - valid), a stale file on disk (`wc -c` on the
+real file on `GPIOTest` - matched the correct, current byte count), a
+missing or duplicate `<link>` tag (View Source on the real page - present
+exactly once, correct `href`), a full browser restart (still broken), and
+a style-rewriting browser extension (Incognito, which disables extensions
+by default - still broken). Every one of those checks came back clean.
+
+The actual cause was sitting in the CSS file itself the entire time,
+predating this session: the comment directly above `.sdcr-log` explained
+that its dark styling doesn't need a Bootstrap or FPP design-system
+token, naming both prefixes back to back separated by a bare forward
+slash with no space - which means the asterisk ending the first prefix's
+own wildcard sits directly next to that slash. Written out that way,
+those two characters ARE CSS's comment-close sequence, so the comment
+actually closed right there, mid-sentence - not at the real `*/` a few
+words later. Everything from that accidental early close up to the next
+occurrence of that same sequence (the rest of the original sentence, plus
+the rule's own real closing marker) became invalid raw CSS text, which
+the browser's parser had to recover from - and every real browser's CSS
+parser recovers from that kind of garbage by skipping forward to the next
+rule boundary, discarding whatever rule was in progress. The rule
+immediately after was `.sdcr-log` itself - so its entire declaration
+block was silently dropped, in every browser, on every device, every
+single time the file was parsed. Confirmed directly: counting `/*` and
+`*/` in the file found 8 opens and 9 closes, and a full depth-tracking
+walk pinpointed the extra close to exactly this comment.
+
+This was never anything to do with browser caching, stale tabs, or
+extensions - the file the server was sending was correct and byte-for-
+byte identical every single test, and every browser correctly parsed it
+exactly the same (wrong) way, every time, because the file itself was
+wrong. It also predates this entire session: this comment, and this typo,
+were part of the plugin's very first real-hardware dark-theme fix, long
+before any of today's changes - `.sdcr-log` has likely never actually
+rendered dark in any browser, on any device, since that original fix
+landed.
+
+Fixed by rewriting the comment to describe the two token prefixes without
+ever writing the literal two-character comment-close sequence anywhere in
+the explanation - including, on the first attempt, inside the new comment
+written to explain the bug, which reintroduced the exact same problem by
+quoting the broken text verbatim. The real fix needed a second pass that
+describes the sequence in words instead of ever typing it out. Verified
+this time with a full comment-depth walk of the file (not just counting
+opens vs. closes, which can coincidentally match while still being out of
+order) confirming every comment closes at depth 0 with nothing left open.
+
+**Not yet validated**: the fix itself hasn't been retested on real
+hardware yet - the whole investigation above happened before it was
+found, so the actual "does `.sdcr-log` render dark and capped now"
+question is still open, same as the line-count-cap change it was
+originally trying to validate.
 
 ## Validated on real hardware
 
@@ -2432,9 +2496,13 @@ Confirmed working end-to-end:
     prompt~~ - **confirmed** on real hardware (see "Added: capped Step 5
     at 2 destinations..." above): the cap, the fixed run order, and the
     `alert()` all worked as expected.
-23. **The `.sdcr-log` line-count cap and always-visible scrollbar** (see
-    "Added: capped log panels at ~20 lines with a visible scrollbar"
-    above) - a real user report drove the change, but the fix itself
-    (line-height-based `max-height`, `overflow-y: scroll`) hasn't been
-    confirmed on real hardware yet to actually keep the rest of the page,
-    including the progress bar, in view during a long-running command.
+23. **The `.sdcr-log` line-count cap, and the stray-`*/`-in-a-comment bug
+    that silently blocked it from ever applying** (see "Added: capped log
+    panels..." and "`.sdcr-log`'s own dark styling never applied at all..."
+    above) - the line-count-cap design was never actually wrong, but a
+    real, long real-hardware investigation found it had never once
+    rendered, in any browser, because of an unrelated stray `*/` inside
+    a comment predating this whole session. Both are fixed now, but
+    neither has been retested on real hardware since - the actual "does
+    `.sdcr-log` render dark and capped now" question, which the whole
+    investigation above happened before ever answering, is still open.
