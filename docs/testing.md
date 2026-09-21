@@ -2549,14 +2549,16 @@ Confirmed working end-to-end:
     above): a real `mount_ro` failure (card removed after Scan, before
     Mount) turned Step 2's bar solid red, matching the fsck-fallback box
     that correctly appeared alongside it.
-21. **The `ERROR:` -> `log()`/`log_file_only()` conversion across all 9
-    scripts** (see "The sibling-partition destination guard, confirmed on
-    real hardware - and a real logging gap it surfaced" above) - the
-    `validate_device()` command-substitution hazard was reasoned through
-    carefully and all 9 touched scripts pass `bash -n`, but a fresh real
-    failure since this landed, confirming its actual `ERROR:` text now
-    appears in a downloaded log bundle instead of just the generic
-    `started`/`finished (exit N)` bookends, has not been done yet.
+21. ~~The `ERROR:` -> `log()`/`log_file_only()` conversion across all 9
+    scripts~~ - **confirmed** on real hardware, and specifically the
+    trickiest case: removed the card after Scan but before Mount,
+    triggering `validate_device()`'s `ERROR: /dev/sda2 is not a block
+    device`. Checked the actual persistent log file directly (not the
+    live browser panel, which was never the part in question) -
+    `[timestamp] ERROR: /dev/sda2 is not a block device` is right there
+    between the `started`/`finished` lines, confirming `log_file_only()`
+    correctly persists it without corrupting `validate_device()`'s own
+    command-substitution-captured return value.
 22. ~~The Step 5 destination limit, fixed run order, and zip-ready
     prompt~~ - **confirmed** on real hardware (see "Added: capped Step 5
     at 2 destinations..." above): the cap, the fixed run order, and the
