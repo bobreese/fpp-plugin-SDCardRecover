@@ -2353,11 +2353,20 @@ bash single-quoted string early) - the same class of mistake as the
 JS change was parsed with a real parser (`esprima`) instead of just
 eyeballing the diff, after that same lesson.
 
-**Not yet validated**: none of this has been exercised on real hardware
-yet - confirming a real already-attached USB candidate's free space
-actually shows up correctly in the Evaluate table, that a candidate with
-no real filesystem (or one that fails to mount) is skipped gracefully
-rather than breaking the rest of Evaluate, and that `EVAL_MOUNTPOINT`
+**Confirmed** on real hardware: with the source card mounted at
+`/mnt/DamagedSD` and the Cruzer stick already attached as `/dev/sdb1`
+(freshly reformatted vfat, otherwise untouched), Evaluate correctly
+added `Free space on /dev/sdb1 (Cruzer) - 7.4 GB - fits` to the results
+table - the real candidate-detection scan found it, correctly excluded
+the mounted source card, and the brief read-only mount/`df`/unmount
+cycle reported real free space. All plugin-related network requests
+(`.../page=ajax.php&endpoint=evaluate`, the streamed commands around it)
+came back clean 200s, no JS console errors.
+
+**Not yet validated**: a candidate with no real filesystem, or one that
+fails to mount, being skipped gracefully rather than breaking the rest
+of Evaluate (this session's candidate mounted cleanly on the first try,
+so that path was never actually exercised) - and that `EVAL_MOUNTPOINT`
 genuinely never collides with a concurrent Step 5 recovery to the same
 drive.
 
@@ -2557,12 +2566,11 @@ Confirmed working end-to-end:
     hardware (see "Added: capped log panels..." and "`.sdcr-log`'s own
     dark styling never applied at all..." above): every log panel renders
     dark now, and the ~20-line cap with its scrollbar actually works.
-24. **Evaluate showing free space on an already-attached USB drive** (see
-    "Added: Evaluate now shows free space on an already-attached USB
-    drive too" above) - the candidate-detection scan, the mount/df/
-    unmount loop, and the new table rows were all reasoned through
-    carefully and checked with real parsers/balance checks in place of
-    eyeballing, but none of it has been exercised on real hardware yet:
-    a real already-attached candidate's free space showing up correctly,
-    an unmountable candidate being skipped gracefully, and confirming
+24. ~~Evaluate showing free space on an already-attached USB drive~~ -
+    **confirmed** on real hardware (see "Added: Evaluate now shows free
+    space on an already-attached USB drive too" above): a real attached
+    Cruzer stick correctly showed `Free space on /dev/sdb1 (Cruzer) -
+    7.4 GB - fits` in the results table. Two narrower pieces are still
+    open: an unmountable candidate being skipped gracefully (never
+    exercised - this session's candidate mounted cleanly), and confirming
     `EVAL_MOUNTPOINT` never collides with a concurrent Step 5 recovery.
