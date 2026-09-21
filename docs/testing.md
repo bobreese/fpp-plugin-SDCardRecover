@@ -2449,13 +2449,18 @@ Confirmed working end-to-end:
    while two chained requests from a second tab were both correctly
    refused and logged, and the carve itself finished cleanly (`exit 0`,
    359 candidates) completely undisturbed.
-6. **The new superfloppy-media branch in `sdcard_scan.sh`** (see "Destination
-   dropdown never populated..." above) - confirmed the classification logic
-   against a synthetic device tree shaped like one, but an actual USB stick
-   with a filesystem written directly on the whole disk (no partition table)
-   has not been tested as a real destination yet. The corrupted-partition-table
-   `NOTE:` path, on the other hand, was confirmed against the real Cruzer
-   stick that surfaced this whole finding.
+6. ~~The new superfloppy-media branch in `sdcard_scan.sh`~~ (see
+   "Destination dropdown never populated..." above) - **confirmed** on
+   real hardware: reformatted the Cruzer with `wipefs -a` +
+   `mkfs.vfat -I` directly on `/dev/sdb` (no partition table at all -
+   `lsblk` showed `FSTYPE=vfat` on the disk line itself, no `sdb1`
+   child). `sdcard_scan.sh` correctly emitted the synthetic
+   `"device":"/dev/sdb","parent":"/dev/sdb",...,"partition":true` line,
+   and Step 5's Refresh correctly listed it as
+   `/dev/sdb - Cruzer (vfat) - 7.5 GB` (`value="/dev/sdb"`, the whole
+   disk) - selectable as a real destination, not just detected. The
+   corrupted-partition-table `NOTE:` path was already confirmed earlier
+   against the real Cruzer stick that surfaced this whole finding.
 7. ~~Removing the stale `sdcr.device` exclusion from
    `populateUsbDestinations()`~~ (see "Destination dropdown could
    silently exclude a healthy drive..." above) - **confirmed** on real
