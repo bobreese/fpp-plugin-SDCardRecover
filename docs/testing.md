@@ -2304,6 +2304,63 @@ fix: every log panel on the page renders dark now, and the ~20-line cap
 with its scrollbar is actually working - both this fix and the
 line-count-cap change it was blocking are validated together.
 
+## Added: Evaluate now shows free space on an already-attached USB drive too
+
+Requested feature, once real-hardware testing above had exercised the
+`recover` command enough to trust it as a foundation: Step 4 only ever
+compared recoverable data against this device's own local free space -
+if a destination USB drive was already plugged in, its free space stayed
+unknown until Step 5, after the destination was actually picked.
+
+An unmounted partition's free space isn't knowable generically across
+vfat/exfat/ntfs/ext4 any other way, so `sdcard_evaluate.sh` now finds
+real destination candidates (reusing `sdcard_scan.sh`'s own root/media/
+already-mounted exclusion filter, plus one more exclusion that script
+doesn't need: the source card's own disk, via `source_device()`, so this
+never touches the card being recovered) and, for each one, briefly mounts
+it read-only at a new dedicated `EVAL_MOUNTPOINT` (`common.sh`) - never
+`DEST_MOUNTPOINT`, Step 5's own read-write destination mount, kept
+separate so an evaluate/recover pair in the same session never contends
+over the same mountpoint path - runs one `df`, and unmounts immediately.
+`guard_not_root_device` still runs per candidate as defense in depth, but
+inside a subshell rather than called directly: that function's real
+`exit` is correct everywhere else it's used (right before a write), but
+here a redundant safety check tripping on one candidate shouldn't cost
+the already-computed local-storage numbers or any other candidate still
+to check.
+
+Results are added to the same `EVALJSON:` payload
+(`ajax.php`/`sdcr_api_evaluate()` needed no changes - it already passes
+the script's JSON straight through) as a `usbCandidates` array, each
+entry's `model` traced straight back to `lsblk`'s own `MODEL` field - the
+same untrusted, USB-device-controlled string `renderDeviceList()`/
+`populateUsbDestinations()` already had a real XSS bug around (see "
+`renderDeviceList` built HTML by string concatenation..." above). The
+existing eval-results table is still built via `innerHTML` for its
+original rows (safe - every value there is a number this plugin computed
+itself), but the new USB rows are appended afterward as real DOM nodes
+via `createElement`/`textContent`, the same safe pattern already
+established elsewhere in this file, specifically because this is the
+first time that table has ever needed to include a raw device-reported
+string.
+
+Verified before committing without real hardware to test against yet:
+the two new `php -r` blocks (the candidate-detection scan and the
+JSON-assembly rewrite) checked for balanced braces/parens/brackets *and*
+zero literal single-quote characters (which would end the surrounding
+bash single-quoted string early) - the same class of mistake as the
+`.sdcr-log` comment bug above, just in a different quoting context. The
+JS change was parsed with a real parser (`esprima`) instead of just
+eyeballing the diff, after that same lesson.
+
+**Not yet validated**: none of this has been exercised on real hardware
+yet - confirming a real already-attached USB candidate's free space
+actually shows up correctly in the Evaluate table, that a candidate with
+no real filesystem (or one that fails to mount) is skipped gracefully
+rather than breaking the rest of Evaluate, and that `EVAL_MOUNTPOINT`
+genuinely never collides with a concurrent Step 5 recovery to the same
+drive.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -2500,3 +2557,12 @@ Confirmed working end-to-end:
     hardware (see "Added: capped log panels..." and "`.sdcr-log`'s own
     dark styling never applied at all..." above): every log panel renders
     dark now, and the ~20-line cap with its scrollbar actually works.
+24. **Evaluate showing free space on an already-attached USB drive** (see
+    "Added: Evaluate now shows free space on an already-attached USB
+    drive too" above) - the candidate-detection scan, the mount/df/
+    unmount loop, and the new table rows were all reasoned through
+    carefully and checked with real parsers/balance checks in place of
+    eyeballing, but none of it has been exercised on real hardware yet:
+    a real already-attached candidate's free space showing up correctly,
+    an unmountable candidate being skipped gracefully, and confirming
+    `EVAL_MOUNTPOINT` never collides with a concurrent Step 5 recovery.

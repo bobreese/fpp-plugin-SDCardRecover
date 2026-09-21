@@ -49,7 +49,11 @@ See [Your First Recovery Session, End to End](first-recovery-walkthrough.md).
      uninstalling avoids the extra step.
 4. **Evaluate (Step 4).** Click **Evaluate** to compare how much data was
    found recoverable against free space on this device's own local storage,
-   before committing to anything.
+   before committing to anything. If a destination USB drive is already
+   plugged in at this point, its own free space is checked and shown here
+   too (each one gets a brief read-only mount just long enough to check,
+   then unmounts again) - so you can see whether it'll actually fit before
+   ever getting to Step 5.
 5. **Recover (Step 5).** Pick up to 2 destinations (a hint above the
    checkboxes says so; a third grays out once 2 are picked):
    - **Restore directly into this device's own media folders** -

@@ -510,6 +510,30 @@
                     '<tr><td>Free space on this FPP\'s storage</td><td>' + humanSize(data.localFreeBytes) + '</td></tr>' +
                     '<tr><td>Fits on local storage?</td><td>' + (data.fitsLocally ? 'Yes' : 'No - consider USB or zip instead') + '</td></tr>' +
                     '</table>';
+                // Found from a real user question: show free space on an
+                // already-attached destination USB drive here too, not just
+                // local storage - see sdcard_evaluate.sh for how it's
+                // measured. Appended as real DOM rows via
+                // createElement/textContent rather than folded into the
+                // innerHTML build above, since `model` traces straight back
+                // to the raw USB device's own self-reported string (lsblk's
+                // MODEL field) - the same untrusted value
+                // renderDeviceList()/populateUsbDestinations() already
+                // handle carefully elsewhere for exactly this reason (see
+                // docs/testing.md). Every other value already used above is
+                // a number this plugin computed itself, safe to concatenate
+                // straight into the string build; this one isn't.
+                var evalTable = el.querySelector('table');
+                (data.usbCandidates || []).forEach(function (item) {
+                    var row = document.createElement('tr');
+                    var label = document.createElement('td');
+                    label.textContent = 'Free space on ' + item.device + (item.model ? ' (' + item.model + ')' : '');
+                    var value = document.createElement('td');
+                    value.textContent = humanSize(item.freeBytes) + (item.fitsOnUsb ? ' - fits' : " - won't fit");
+                    row.appendChild(label);
+                    row.appendChild(value);
+                    evalTable.appendChild(row);
+                });
                 enableStep($('#sdcr-step-recover'));
                 // Found in fpp-data review, alongside the sibling-partition
                 // fix above: Step 5's destination list was otherwise still

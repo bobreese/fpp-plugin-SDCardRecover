@@ -5,6 +5,13 @@
 
 MOUNTPOINT="/mnt/DamagedSD"
 DEST_MOUNTPOINT="/mnt/SDCardRecoverDest"
+# Read-only, throwaway mountpoint sdcard_evaluate.sh uses to briefly check
+# free space on an already-attached candidate USB drive - separate from
+# both MOUNTPOINT (the source card, always read-only) and DEST_MOUNTPOINT
+# (the real Step 5 recovery destination, mounted read-write) so a
+# same-session evaluate/recover pair never contends over the same
+# mountpoint path.
+EVAL_MOUNTPOINT="/mnt/SDCardRecoverEval"
 STATE_DIR="/home/fpp/media/config/plugin.SDCardRecover"
 MANIFEST="$STATE_DIR/manifest.tsv"
 LOCKFILE="/tmp/sdcard-recover.lock"
