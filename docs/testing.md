@@ -2519,13 +2519,15 @@ Confirmed working end-to-end:
     successfully. The full arc - broken since the feature was first added
     (see "The real cause of the failed delete..." above), diagnosed via a
     real user report, fixed, and now confirmed working - is closed.
-16. **The `stream.php` header-ordering fix** (see "`stream.php`'s own
-    `Content-Type` header silently never applied..." above) - the root
-    cause was traced directly against FPP's real `www/common.php` and
-    `www/copystorage.php`, but a fresh real-hardware session since the
-    fix landed, confirming `apache2-error.log` no longer gets a
-    `headers already sent` warning on every wizard action, has not been
-    done yet.
+16. ~~The `stream.php` header-ordering fix~~ - **confirmed** on real
+    hardware (see "`stream.php`'s own `Content-Type` header silently
+    never applied..." above): checked `apache2-error.log` via FPP's own
+    File Manager -> Logs -> View directly. Every `headers already sent`
+    warning for `stream.php` in the file is timestamped before 09:56:24
+    on 2026-09-20, exactly when the fix landed - zero occurrences since,
+    across dozens more real `stream.php` calls (mount, verify, carve,
+    recover, multiple real-hardware test sessions) spanning the rest of
+    that day and all of the next.
 17. ~~The delete button's `(ok, text)` error-visibility fix~~ - **confirmed**
     on real hardware, sooner than expected: it's the reason "The real
     cause of the failed delete..." above could be diagnosed at all. A real
