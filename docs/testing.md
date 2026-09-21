@@ -2370,6 +2370,39 @@ so that path was never actually exercised) - and that `EVAL_MOUNTPOINT`
 genuinely never collides with a concurrent Step 5 recovery to the same
 drive.
 
+## Sudo/permissions, checked against real log history (real hardware)
+
+Item 3 in "Not yet validated" below was really two separate claims worth
+untangling: whether a per-plugin sudoers entry needs to exist (it
+doesn't - see [privacy.md](privacy.md#not-declared-privilege): FPP's
+stock images already grant every plugin passwordless sudo, and this
+plugin never adds a sudoers rule, group, or key of its own on top of
+that), and whether that stock grant has actually held up across real
+invocations rather than just being assumed. Only the second half is
+something real hardware can confirm.
+
+Rather than trigger a fresh session, checked the evidence real testing
+had already generated: pulled `plugin-fpp-plugin-SDCardRecover.log`
+(1,903 lines), `apache2-error.log`, and `fpp_plugin_manager.log`
+directly from `GPIOTest` via its own `/api/file/Logs/...` endpoint (the
+same one File Manager's Logs -> View uses) and searched all three for
+`sudo`, `permission denied`, `not in the sudoers`, `password is
+required`, and `no tty present` - the specific text sudo prints when a
+caller isn't authorized or a TTY it expects isn't there. Zero matches in
+any of the three files.
+
+That's meaningful coverage, not just an absence of counter-evidence: the
+plugin's own log alone spans every real-hardware session behind the
+"Validated on real hardware" list below - `scan`, `mount_ro`, `verify`,
+`evaluate`, `recover` (all three destinations), `carve`, `fsck -n`/
+`fsck -y`, and `sdcard_delete_artifact.sh` all shell out via `sudo`
+(`scripts_dispatch.php`'s `sdcr_passthru()`, or `ajax.php` directly for
+`evaluate`), and every one of them ran to completion in these logs with
+no sudo-shaped failure anywhere in the history the device still retains.
+The stock passwordless-sudo grant this plugin relies on has been
+exercised dozens of times for real and never once been the thing that
+broke.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -2427,11 +2460,14 @@ Confirmed working end-to-end:
    tested against the `testdisk` package version FPP actually ships, and
    may need `partition_order` / `search` flags adjusted. The path has not
    been exercised on real hardware at all yet.
-3. **Sudo/permissions**: every script assumes it's invoked via `sudo` from the
-   web server user, matching FPP core's own pattern in `backups.php` - the
-   plugin's sudoers entry (if FPP requires one per-plugin) isn't set up here.
-   (Real testing so far hasn't hit a permissions problem, but that's not the
-   same as this being formally set up.)
+3. ~~Sudo/permissions~~ (see "Sudo/permissions, checked against real log
+   history..." above) - **confirmed**, with the caveat narrowed by that
+   section: no per-plugin sudoers entry is needed (FPP's stock images
+   already grant every plugin passwordless sudo, and this plugin adds
+   nothing of its own on top - see
+   [privacy.md](privacy.md#not-declared-privilege)), and a real-hardware
+   log history search across 1,903+ log lines spanning every script this
+   plugin runs via `sudo` turned up zero sudo-shaped failures anywhere.
 4. **Routing local Config restore through FPP's own restore tooling**
    (`/api/backups` JSON restore, or `copy_settings_to_storage.sh`'s restore
    path) instead of a raw `rsync` straight to disk - see the section above.
