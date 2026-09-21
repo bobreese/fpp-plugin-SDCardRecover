@@ -2456,13 +2456,13 @@ Confirmed working end-to-end:
    has not been tested as a real destination yet. The corrupted-partition-table
    `NOTE:` path, on the other hand, was confirmed against the real Cruzer
    stick that surfaced this whole finding.
-7. **Removing the stale `sdcr.device` exclusion from `populateUsbDestinations()`**
-   (see "Destination dropdown could silently exclude a healthy drive..."
-   above) - the failure mode and the fix were both confirmed against a
-   synthetic scenario built from this session's own real `dmesg` device-letter
-   churn, but the actual next real-hardware retest (reformatted stick,
-   deliberately replugged mid-session, Refresh clicked at Step 5) has not
-   happened yet.
+7. ~~Removing the stale `sdcr.device` exclusion from
+   `populateUsbDestinations()`~~ (see "Destination dropdown could
+   silently exclude a healthy drive..." above) - **confirmed** on real
+   hardware: with the source mounted, physically unplugged and replugged
+   the destination Cruzer stick, then clicked Refresh at Step 5. The
+   dropdown correctly listed `/dev/sdb1 - Cruzer (vfat) - 7.5 GB` -
+   the old buggy code would have left it empty.
 8. ~~The sibling-partition destination guard~~ (`source_device()` in
    `common.sh`, the new check in `sdcard_recover.sh`, and the restored
    client-side filter - see "The sibling-partition destination guard,
@@ -2482,11 +2482,13 @@ Confirmed working end-to-end:
    `plugin.SDCardRecover`/`dummy` on the device came back empty. The
    source card's own copy of this plugin's scratch state is genuinely
    excluded, not just excluded in theory.
-10. **The `blockdev --setrw` reversal in `sdcard_unmount.sh`/`fpp_uninstall.sh`**
-    (see "`blockdev --setro` was never reversed after a normal (non-repair)
-    session..." above) - not yet confirmed on real hardware that a card
-    actually comes back block-layer writable (`blockdev --getro` reporting
-    `0`) after a normal Cleanup or an uninstall with the card still attached.
+10. ~~The `blockdev --setrw` reversal in `sdcard_unmount.sh`~~ (see
+    "`blockdev --setro` was never reversed after a normal (non-repair)
+    session..." above) - **confirmed** on real hardware: right after a
+    normal Scan-triggered unmount of the source card, `sudo blockdev
+    --getro /dev/sda2` reported `0` - block-layer writable again, not
+    stuck read-only. The `fpp_uninstall.sh` half of this same fix (the
+    card still attached at uninstall time) remains unexercised.
 11. ~~`log_file_only()` and `sdcard_scan.sh`'s new "Scan found:" block~~
     (see "A scan's own results never reached the persistent log file..."
     above) - **confirmed** from a real `GPIOTest` session's downloaded log
