@@ -2299,11 +2299,10 @@ this time with a full comment-depth walk of the file (not just counting
 opens vs. closes, which can coincidentally match while still being out of
 order) confirming every comment closes at depth 0 with nothing left open.
 
-**Not yet validated**: the fix itself hasn't been retested on real
-hardware yet - the whole investigation above happened before it was
-found, so the actual "does `.sdcr-log` render dark and capped now"
-question is still open, same as the line-count-cap change it was
-originally trying to validate.
+**Confirmed** on real hardware, on the very next real recover after the
+fix: every log panel on the page renders dark now, and the ~20-line cap
+with its scrollbar is actually working - both this fix and the
+line-count-cap change it was blocking are validated together.
 
 ## Validated on real hardware
 
@@ -2496,13 +2495,8 @@ Confirmed working end-to-end:
     prompt~~ - **confirmed** on real hardware (see "Added: capped Step 5
     at 2 destinations..." above): the cap, the fixed run order, and the
     `alert()` all worked as expected.
-23. **The `.sdcr-log` line-count cap, and the stray-`*/`-in-a-comment bug
-    that silently blocked it from ever applying** (see "Added: capped log
-    panels..." and "`.sdcr-log`'s own dark styling never applied at all..."
-    above) - the line-count-cap design was never actually wrong, but a
-    real, long real-hardware investigation found it had never once
-    rendered, in any browser, because of an unrelated stray `*/` inside
-    a comment predating this whole session. Both are fixed now, but
-    neither has been retested on real hardware since - the actual "does
-    `.sdcr-log` render dark and capped now" question, which the whole
-    investigation above happened before ever answering, is still open.
+23. ~~The `.sdcr-log` line-count cap, and the stray-`*/`-in-a-comment bug
+    that silently blocked it from ever applying~~ - **confirmed** on real
+    hardware (see "Added: capped log panels..." and "`.sdcr-log`'s own
+    dark styling never applied at all..." above): every log panel renders
+    dark now, and the ~20-line cap with its scrollbar actually works.
