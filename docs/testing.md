@@ -1996,6 +1996,87 @@ in under 90 seconds against a mostly-empty test card, far faster than
 photorec's own early "2h58m" estimate suggested, leaving a narrower
 window than expected to react in).
 
+## A large real fsck -y response lost its own exit-code marker (real bug, found and fixed on real hardware)
+
+The `runFsckRepair()` half of item 18, attempted on the same real
+`GPIOTest` source card: re-trashed the partition's primary superblock
+(`sudo dd if=/dev/urandom of=/dev/sda2 bs=4096 count=1` - same method as
+"The fsck fallback UI could never actually appear..." above, the
+original test that proved this exact corruption reliably makes `fsck -y`
+exit nonzero), which correctly failed the mount, correctly showed the
+`fsck -n` fallback box (exit 12), and correctly offered "Attempt repair."
+Clicking it ran a real `fsck -y` against a genuinely 63 GB, heavily
+corrupted ext4 filesystem - by far the largest response this plugin has
+ever streamed back to a browser (~28 KB, thousands of `Free blocks count
+wrong ... Fix? yes` lines) - and it finished with a real, logged
+`fsck -y exit code: 1` (errors corrected - a normal, successful e2fsck
+repair, not code 0).
+
+Before checking the alert this session expected to see, one detour was
+necessary: `fsck.ext2`'s own diagnostic text read `checking journal for
+rootfs` and `rootfs: ***** FILE SYSTEM WAS MODIFIED *****` - alarming
+phrasing that could easily be misread as "ran against the Pi's own boot
+filesystem," a `guard_not_root_device()` failure. It wasn't. That guard
+calls `root_device()` (`findmnt -n -o SOURCE /`) fresh on every
+invocation, not a cached value, and it did not refuse this run - direct,
+live evidence `/dev/sda2` genuinely isn't `GPIOTest`'s root device.
+"rootfs" here is e2fsck's own generic internal placeholder for a
+filesystem it can't otherwise name, unrelated to device identity. Worth
+recording because it is a realistic way to scare yourself reading real
+`fsck -y` output on a raw device path, not because it turned out to be
+anything.
+
+The actual surprise: instead of the item-18 alert firing for a nonzero
+exit, `js/sdcard-recover.js`'s `runFsckRepair()` silently took the
+**success** branch - `scrollToMountLog()` and `runMount()` ran
+immediately, and the retried mount/verify both succeeded, logged at the
+very same second the repair itself finished. Traced directly rather than
+guessed at:
+
+- The deployed JS was confirmed correct and unchanged (re-fetched the
+  live file from `GPIOTest` and diffed the `runFsckRepair()` body against
+  source - no typo, no inverted condition).
+- `scripts_dispatch.php`'s `sdcr_passthru()` appends `SDCR_EXITCODE:$rc`
+  unconditionally, every time, with no conditional skip.
+- `apache2-error.log` showed nothing around the request window - no
+  proxy timeout, no truncation at that layer.
+- The literal string `SDCR_EXITCODE` was confirmed **absent anywhere**
+  in the final displayed log panel's `textContent` - not just stripped
+  from the visible tail, genuinely not present at all, checked via
+  `indexOf` across the whole element.
+- The regex/parsing logic itself was confirmed correct in isolation
+  (tested live against a reconstructed `"...\nSDCR_EXITCODE:1\n"` string
+  in the same browser - matched, captured `"1"`, `exitOk` correctly
+  `false`).
+
+That combination only makes sense one way: `streamCommand()`'s `onload`
+handler reads `logEl.textContent` - a copy of the response body *this
+plugin* reconstructs incrementally inside `onprogress`, not the
+browser's own response buffer. `onprogress` is not guaranteed to fire
+for every byte; browsers may coalesce or throttle it. For every smaller
+response earlier in this same session (`mount_ro`'s 3-line failure,
+`fsck_check -n`'s ~15-line failure), `onprogress` easily kept up and both
+correctly detected their real nonzero exit codes - only the ~28 KB
+response, arriving in a rapid final burst of thousands of lines, lost
+its trailing marker from `logEl.textContent` before `onload`'s snapshot
+ran. `exitOk` fell back to the always-true `xhr.status === 200` path,
+silently converting a real, successful-but-not-zero repair into a
+false "everything's fine, retry the mount" - the exact failure mode the
+`SDCR_EXITCODE` marker was originally built to prevent, reopened by
+response size rather than by the original missing-exit-code gap.
+
+**Fixed** in `streamCommand()`'s `onload`: resync from `xhr.responseText`
+first (the same diffing `onprogress` does), before reading
+`logEl.textContent` - `xhr.responseText` is the browser's own buffer and
+is guaranteed complete by the time `onload` fires, regardless of how many
+`onprogress` events actually fired along the way.
+
+**Not yet re-validated**: the fix hasn't been re-run against this same
+real scenario yet - re-corrupting the superblock again and re-running
+`fsck -y` a second time, now with the fix deployed, is the natural next
+step and the strongest possible validation, since this exact repro is
+already in hand.
+
 ## The real cause of the failed delete: the script itself was never executable (real bug, confirmed on real hardware)
 
 Direct follow-on from the section above, and worth being honest about how

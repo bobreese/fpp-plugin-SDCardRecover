@@ -114,6 +114,27 @@
             // without this, a failed mount/fsck always looked like success
             // and the fallback UI (fsck -n box, repair-offer box) could
             // never appear.
+            //
+            // Found on real hardware against a genuinely large response (a
+            // real fsck -y repair, ~28KB/thousands of lines): resync from
+            // xhr.responseText here first, the same diffing onprogress does,
+            // rather than trusting logEl.textContent alone. onprogress isn't
+            // guaranteed to fire for every byte - browsers can coalesce/
+            // throttle it - so logEl.textContent (built incrementally from
+            // onprogress) can legitimately lag behind what actually arrived,
+            // silently dropping the trailing SDCR_EXITCODE marker off a
+            // rapid final burst. xhr.responseText is the browser's own
+            // buffer and is guaranteed complete by the time onload fires;
+            // small responses never showed this (onprogress easily kept up),
+            // but a real repair run big enough to matter did - a genuine
+            // exit code of 1 (errors corrected) fell back to the always-true
+            // xhr.status===200 path and silently proceeded to retry the
+            // mount as if the repair had cleanly succeeded.
+            var full = xhr.responseText || xhr.response || '';
+            if (full.length > lastLen) {
+                logEl.textContent += full.substring(lastLen);
+                lastLen = full.length;
+            }
             var text = logEl.textContent;
             var m = text.match(/\r?\nSDCR_EXITCODE:(-?\d+)\s*$/);
             var exitOk;
