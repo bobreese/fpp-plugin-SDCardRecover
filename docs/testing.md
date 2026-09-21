@@ -2471,13 +2471,17 @@ Confirmed working end-to-end:
    bypassing that filter deliberately to force it through anyway got a
    clean, correct real-hardware refusal from `sdcard_recover.sh` itself,
    `exit 1`, no write ever reached the card.
-9. **The `config/plugin.SDCardRecover/` exclusion in `sdcard_verify.sh`**
-   (see "Restoring Config could import the source card's own copy of this
-   plugin's scratch state..." above) - the skip logic itself was verified
-   directly against real and lookalike paths, but the actual scenario
-   (a source card that itself has this plugin's scratch directory present,
-   verified, and confirmed absent from the resulting manifest on real
-   hardware) has not been exercised yet.
+9. ~~The `config/plugin.SDCardRecover/` exclusion in `sdcard_verify.sh`~~ -
+   **confirmed** on real hardware: manually mounted the source card
+   read-write outside the plugin (a one-time, deliberate step the plugin
+   itself never does) just long enough to plant
+   `home/fpp/media/config/plugin.SDCardRecover/dummy.txt`, then ran the
+   normal Scan -> Mount (read-only) -> Verify flow. Verification reported
+   the same `100 readable, 0 unreadable, 100 total files` as every prior
+   baseline run - not 101 - and `grep`ing the real manifest for
+   `plugin.SDCardRecover`/`dummy` on the device came back empty. The
+   source card's own copy of this plugin's scratch state is genuinely
+   excluded, not just excluded in theory.
 10. **The `blockdev --setrw` reversal in `sdcard_unmount.sh`/`fpp_uninstall.sh`**
     (see "`blockdev --setro` was never reversed after a normal (non-repair)
     session..." above) - not yet confirmed on real hardware that a card
