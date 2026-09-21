@@ -409,14 +409,30 @@
     }
 
     function runFsckRepair() {
-        streamCommand('fsck_repair', { device: sdcr.partition }, 'sdcr-log-fsck-repair', null, function () {
+        // Same (ok, text)-ignoring shape delete_artifact had - see
+        // docs/testing.md. A failed repair used to retry the mount anyway
+        // with no indication the repair itself hadn't worked.
+        streamCommand('fsck_repair', { device: sdcr.partition }, 'sdcr-log-fsck-repair', null, function (ok, text) {
+            if (!ok) {
+                alert('Repair failed for ' + sdcr.partition + ':\n\n' +
+                    (text && text.trim() ? text.trim() : '(no output - check plugin-fpp-plugin-SDCardRecover.log)'));
+                return;
+            }
             scrollToMountLog();
             runMount(); // retry mount after repair
         });
     }
 
     function runCarve() {
-        streamCommand('carve', { device: sdcr.device }, 'sdcr-log-carve', 'sdcr-progress-carve', function () {
+        // Same (ok, text)-ignoring shape delete_artifact had - see
+        // docs/testing.md. A failed deep scan used to refresh the (empty)
+        // artifact list with no indication the run itself hadn't worked.
+        streamCommand('carve', { device: sdcr.device }, 'sdcr-log-carve', 'sdcr-progress-carve', function (ok, text) {
+            if (!ok) {
+                alert('Deep scan failed for ' + sdcr.device + ':\n\n' +
+                    (text && text.trim() ? text.trim() : '(no output - check plugin-fpp-plugin-SDCardRecover.log)'));
+                return;
+            }
             // deep-scan results are reported in the log; evaluate step still
             // reflects the verify manifest for the "fits locally?" check.
             refreshArtifacts();

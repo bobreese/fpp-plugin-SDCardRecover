@@ -1903,7 +1903,8 @@ Fixed both:
 `fsck_repair`'s own `streamCommand` callbacks have this same
 ignore-the-result shape and were not touched here - out of scope for the
 report that surfaced this one. Same class of bug, not yet fixed; tracked
-as a follow-up, not assumed away.
+as a follow-up, not assumed away. (Since fixed - see "`carve` and
+`fsck_repair` closed the same `(ok, text)` gap..." below.)
 
 **Not yet validated**: whether lock contention was actually what this
 specific user hit (plausible and now impossible to rule back in after the
@@ -1911,6 +1912,41 @@ fact, since the old code left no trace either way) versus some other
 pre-log failure - and whether the fix above actually produces a
 `log()`ged refusal and a visible `alert()` the next time a real lock
 collision happens on real hardware.
+
+## `carve` and `fsck_repair` closed the same `(ok, text)` gap the delete button had (real bug, not yet validated on real hardware)
+
+Item 18 in "Not yet validated" below, closed out - the gap flagged but
+deliberately left open in the section above. `runFsckRepair()` and
+`runCarve()` in `js/sdcard-recover.js` had the exact same shape as the
+delete button's bug: both `streamCommand` callbacks took no arguments at
+all, so a failed run was indistinguishable from a successful one at the
+UI layer.
+
+- `runFsckRepair()` was the worse of the two: on failure it still called
+  `scrollToMountLog()` and immediately retried the mount - so a repair
+  that genuinely failed (`fsck -y` exiting nonzero) looked identical to
+  one that succeeded, right up until the retried mount itself failed
+  again for reasons the user had no way to connect back to the repair
+  that just silently didn't work. It also passes `null` for `progressId`
+  (no progress bar exists for this sub-step), so there was no visual
+  signal of any kind on failure - not even the red bar item 20 validated
+  elsewhere.
+- `runCarve()` had progressId (turns the deep-scan progress bar red on
+  failure, same mechanism as item 20), but still called
+  `refreshArtifacts()` unconditionally either way - a failed carve just
+  silently re-rendered the same (unchanged) artifact list, with nothing
+  telling the user the run itself hadn't produced anything.
+
+Fixed both the same way the delete button was fixed: both callbacks now
+take `(ok, text)`, and on failure show the actual streamed output via
+`alert()` and return early instead of proceeding into the success path
+(retrying the mount / refreshing artifacts).
+
+**Not yet validated**: neither path has been exercised against a genuine
+failure on real hardware yet - a real `fsck -y` that still exits nonzero
+after running, and a real `photorec`/`sdcard_carve.sh` failure (e.g. a
+device unplugged mid-carve). Both are harder to trigger deliberately
+than the delete-button lock-contention case was.
 
 ## The real cause of the failed delete: the script itself was never executable (real bug, confirmed on real hardware)
 
@@ -2585,10 +2621,11 @@ Confirmed working end-to-end:
     refusal specifically - is still unconfirmed, since that was never what
     this particular failure turned out to be.
 18. **`carve` and `fsck_repair`'s `streamCommand` callbacks ignoring
-    `(ok, text)`** (see the "gap this doesn't close" note in the same
-    section above) - same shape of bug as the delete button had, found
-    while fixing that one, deliberately left unfixed here as out of
-    scope for the report that surfaced it.
+    `(ok, text)`** - fixed (see "`carve` and `fsck_repair` closed the
+    same `(ok, text)` gap..." above), same shape and same fix as the
+    delete button's. Not yet validated: neither a real failed `fsck -y`
+    nor a real failed carve has been exercised on real hardware since
+    the fix landed.
 19. ~~The `sdcard_delete_artifact.sh` executable-bit fix~~ - **confirmed**
     on real hardware (see "The real cause of the failed delete..." above):
     `git update-index --chmod=+x` corrected the tracked mode, and a real
