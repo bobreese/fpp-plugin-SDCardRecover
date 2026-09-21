@@ -20,9 +20,12 @@ without running any destructive repair unless you explicitly ask for it.
   retrieved manually (not yet wired into the Recover step or any
   destination) - see [Testing & Real-Hardware Findings](docs/testing.md)
   for the exact gap.
-- Three destinations, your choice: restore directly into this device's own
-  media folders (category-selective), copy to a second USB drive, or
-  download a zip.
+- Three destinations, pick up to 2 at once: restore directly into this
+  device's own media folders (category-selective), copy to a second USB
+  drive, or download a zip. If zip is one of your two, it always runs
+  first (with a "ready to download" prompt before continuing); a local
+  restore always runs last, since it's this device's own media/config
+  being overwritten, not a copy going somewhere else.
 - Config is special-cased: it holds this device's own name, IP, and other
   core settings, so including it requires an explicit "I understand"
   confirmation, and this device's current config/settings/timezone are

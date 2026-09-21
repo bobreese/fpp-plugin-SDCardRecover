@@ -543,6 +543,19 @@
         return $all('.sdcr-local-cat:checked').map(function (cb) { return cb.value; });
     }
 
+    // Caps Step 5 at 2 destinations at once (see the hint text in
+    // status.php) - disables whichever destination checkboxes aren't
+    // already checked once 2 are, so a third can't be picked; re-enables
+    // all of them the moment one gets unchecked again.
+    var MAX_DESTINATIONS = 2;
+    function enforceDestinationLimit() {
+        var boxes = $all('input[name="sdcr-dest"]');
+        var checkedCount = boxes.filter(function (cb) { return cb.checked; }).length;
+        boxes.forEach(function (cb) {
+            cb.disabled = !cb.checked && checkedCount >= MAX_DESTINATIONS;
+        });
+    }
+
     // Local restore is gated on more than "is a destination checked": if
     // Config is among the chosen categories, the explicit "I understand"
     // checkbox must also be checked, since that overwrites THIS device's
@@ -570,9 +583,17 @@
         $('#sdcr-btn-recover').disabled = dests.length === 0 || blocked || localNeedsCategory;
     }
 
+    // Fixed run order regardless of the order the checkboxes were ticked in
+    // (see the hint text in status.php): zip first if chosen, so its
+    // "ready to download" info box lands before anything else runs; local
+    // last if chosen, since it's this device's own media/config being
+    // touched, not a copy elsewhere. usb sits in between either way.
+    var DEST_RUN_ORDER = ['zip', 'usb', 'local'];
+
     function runRecover() {
-        var dests = selectedDestinations();
-        if (dests.length === 0) return;
+        var chosen = selectedDestinations();
+        if (chosen.length === 0) return;
+        var dests = DEST_RUN_ORDER.filter(function (d) { return chosen.indexOf(d) !== -1; });
 
         function next(i) {
             if (i >= dests.length) return;
@@ -595,6 +616,13 @@
                             link.innerHTML = '<a class="btn btn-primary" href="' + downloadUrl + '">Download ' + name + '</a>';
                         }
                         refreshArtifacts();
+                        // alert() blocks until dismissed, so this naturally
+                        // pauses the sequence here rather than needing its
+                        // own state machine - the next destination (if any)
+                        // only starts once the user clicks OK.
+                        if (ok && name) {
+                            alert('Zip ready: ' + name + '\n\nClick OK to continue.');
+                        }
                     }
                     next(i + 1);
                 });
@@ -624,6 +652,7 @@
         $all('input[name="sdcr-dest"]').forEach(function (cb) {
             cb.addEventListener('change', function () {
                 $('#sdcr-usb-target').disabled = !$('input[value="usb"]').checked;
+                enforceDestinationLimit();
                 updateRecoverButtonState();
             });
         });

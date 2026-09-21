@@ -2168,6 +2168,46 @@ synchronize the two operations (e.g. a wrapper pausing `sdcard_recover.sh`
 mid-`rsync`, or `fppd` instrumented to log exactly when it re-reads and
 patches the settings file).
 
+## Added: capped Step 5 at 2 destinations, with a fixed run order and a zip-ready prompt
+
+Not a bug - a requested UX change to Step 5, once real-hardware testing
+above had exercised recovering to local/USB/zip individually enough to
+trust the underlying `recover` command itself. Previously all 3
+destination checkboxes could be checked at once, and `runRecover()` ran
+them in whatever order `selectedDestinations()` happened to return
+(document order, so effectively always local -> usb -> zip regardless of
+which you actually checked first) - local, the one destination that
+overwrites *this device's own* media/config rather than copying
+somewhere else, could end up running first or in the middle of a
+multi-destination run with no way to change that from the UI.
+
+Three changes, all in `js/sdcard-recover.js` (plus a one-line hint in
+`status.php`):
+
+- `enforceDestinationLimit()` caps the 3 checkboxes at 2 checked at once -
+  disables whichever aren't checked once 2 are, re-enables all of them
+  the moment one gets unchecked. Wired into the existing
+  `input[name="sdcr-dest"]` change handler, alongside the USB-select
+  enable/disable it already did.
+- `DEST_RUN_ORDER = ['zip', 'usb', 'local']` replaces the old
+  document-order destination list in `runRecover()` with a fixed
+  priority, filtered down to whichever 2 (or fewer) are actually checked:
+  zip always first, local always last, usb in between either way.
+- The zip branch of `runRecover()`'s per-destination callback now shows
+  `alert('Zip ready: ' + name + '\n\nClick OK to continue.')` after
+  setting up the existing Download button and refreshing the artifacts
+  list, before moving on to the next destination. `alert()` is already
+  this plugin's established pattern for a blocking native dialog (the
+  delete confirmation, the delete-failure message) - it needs no new
+  state machine, since it's synchronous: `next(i + 1)` genuinely doesn't
+  run until the user clicks OK.
+
+**Not yet validated**: none of this has been exercised on real hardware
+yet - confirming the checkbox limit actually grays out a third choice
+(and un-grays correctly), that zip really does run first and local last
+for both possible orderings (zip+local, zip+usb, usb+local), and that the
+`alert()` genuinely pauses the sequence rather than racing ahead of it.
+
 ## Validated on real hardware
 
 Confirmed working end-to-end:
@@ -2355,3 +2395,10 @@ Confirmed working end-to-end:
     failure since this landed, confirming its actual `ERROR:` text now
     appears in a downloaded log bundle instead of just the generic
     `started`/`finished (exit N)` bookends, has not been done yet.
+22. **The Step 5 destination limit, fixed run order, and zip-ready
+    prompt** (see "Added: capped Step 5 at 2 destinations..." above) -
+    reasoned through directly against the existing checkbox/JS structure,
+    but none of the three behaviors (the third checkbox actually graying
+    out, zip running first and local last for real, the `alert()` actually
+    pausing the sequence) has been exercised in a real browser on real
+    hardware yet.

@@ -137,6 +137,7 @@
         </div>
         <div class="sdcr-step-body">
             <div class="sdcr-dest-options">
+                <div class="sdcr-hint">Choose up to 2 destinations - if zip is included it always runs first, and restoring directly into this FPP's own folders always runs last.</div>
                 <label><input type="checkbox" name="sdcr-dest" value="local"> Restore directly into this FPP's own media folders</label>
                 <div id="sdcr-local-categories" style="display:none; margin: 0.4em 0 0.8em 1.6em;">
                     <div class="sdcr-hint">Choose what to bring in - only the checked categories are touched, and only files already found readable in Step 2.</div>

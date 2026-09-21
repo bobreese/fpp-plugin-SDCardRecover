@@ -50,7 +50,8 @@ See [Your First Recovery Session, End to End](first-recovery-walkthrough.md).
 4. **Evaluate (Step 4).** Click **Evaluate** to compare how much data was
    found recoverable against free space on this device's own local storage,
    before committing to anything.
-5. **Recover (Step 5).** Pick one or more destinations:
+5. **Recover (Step 5).** Pick up to 2 destinations (a hint above the
+   checkboxes says so; a third grays out once 2 are picked):
    - **Restore directly into this device's own media folders** -
      category-selective: only the categories you check are touched, and
      only files already confirmed readable in Step 2. Including **Config**
@@ -70,8 +71,14 @@ See [Your First Recovery Session, End to End](first-recovery-walkthrough.md).
      it; this won't format one for you.
    - **A zip file**, downloaded straight to your computer.
 
-   Click **Recover** once you've made your choices. Every step along the
-   way is also written to
+   Click **Recover** once you've made your choices. If both are picked,
+   they run in a fixed order, not the order you checked them in: **zip
+   first** (with a "Zip ready" info box - click OK to continue once you've
+   used the Download button, or before, since the file's already there
+   either way), **then local last** if it's the other one chosen, since
+   that's this device's own media/config being overwritten, not a copy
+   going somewhere else. USB runs in between either way. Every step along
+   the way is also written to
    `media/logs/plugin-fpp-plugin-SDCardRecover.log`, viewable and
    downloadable from FPP's own File Manager -> Logs tab, not just the live
    log panel on this page.
