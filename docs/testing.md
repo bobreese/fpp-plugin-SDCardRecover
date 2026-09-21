@@ -1443,22 +1443,39 @@ still showed the *old* behavior, as if the fix hadn't taken effect.
 Confirmed against FPP core's real `www/plugin.php`: it generates this
 plugin's `<script src="plugin.php?plugin=...&file=js/sdcard-recover.js&nopage=1">`
 tag with no cache-busting (no `?ref=<filemtime>` the way FPP's own core
-JS/CSS files get) and its `file=` handler sends no `Cache-Control` or
-`ETag` header on the response either. A browser tab that was already open
-across a plugin update just keeps running whatever JS it loaded when the
-page was last opened - nothing about updating the files on disk causes an
-already-open tab to go fetch the new copy, and there's no cache-busting
-to force a fresh fetch even on a plain reload in some browsers. This is a
-gap in FPP core's plugin-loading mechanism, not something fixable from
-this plugin's own code.
+JS/CSS files get). A browser tab that was already open across a plugin
+update just keeps running whatever JS it loaded when the page was last
+opened - nothing about updating the files on disk causes an already-open
+tab to go fetch the new copy, and there's no cache-busting to force a
+fresh fetch even on a plain reload in some browsers. This is a gap in FPP
+core's plugin-loading mechanism, not something fixable from this
+plugin's own code.
 
-**For any future JS-touching change**: hard-refresh (`Ctrl+Shift+R`) or
-fully close and reopen the page after updating, before concluding a fix
-didn't work. The bash/server-side scripts never have this problem -
-`sudo`-invoked scripts always run whatever is currently on disk, no
-caching concept applies to them - so a log showing new behavior while the
-page's own rendering doesn't is close to a decisive tell that this is
-what's going on, not a real regression.
+**Update, found to be worse than first described** (during the real
+`fsck -y` exit-code investigation below): this file's own `file=` handler
+does send a `Cache-Control` header, and it's aggressive -
+`max-age=31536000` (one year), with no `ETag`/`Last-Modified` validator
+for the browser to check against at all. That combination means a
+browser that has ever loaded this file will keep serving it from its own
+disk cache for up to a year, for any URL that ever loaded it, not just a
+tab that happened to stay open - confirmed the hard way: reinstalling the
+plugin on `GPIOTest`, then testing from a brand new tab, a JS-triggered
+`location.reload(true)`, and a `Ctrl+Shift+R` keypress (sent via this
+session's browser-automation tool, not a physical keyboard - a real
+user's own hardware shortcut may behave differently) all kept executing
+the same stale, pre-update script. Confirmed directly against a plain
+`fetch()` of the same URL with `cache: 'no-store'`, which correctly
+returned the current file every time - only requests that respect the
+browser's own HTTP cache were affected.
+
+**For any future JS-touching change**: don't trust a same-tab reload, a
+new tab, or even a hard-refresh keypress to prove a JS fix landed -
+verify with a `fetch(url, {cache: 'no-store'})` from the console instead,
+or a genuinely clean browser profile/private window. The bash/server-side
+scripts never have this problem - `sudo`-invoked scripts always run
+whatever is currently on disk, no caching concept applies to them - so a
+log showing new behavior while the page's own rendering doesn't is close
+to a decisive tell that this is what's going on, not a real regression.
 
 ## photorec's `fileopt` extension list silently disabled every real file type (real bug, real hardware)
 
@@ -2071,11 +2088,40 @@ first (the same diffing `onprogress` does), before reading
 is guaranteed complete by the time `onload` fires, regardless of how many
 `onprogress` events actually fired along the way.
 
-**Not yet re-validated**: the fix hasn't been re-run against this same
-real scenario yet - re-corrupting the superblock again and re-running
-`fsck -y` a second time, now with the fix deployed, is the natural next
-step and the strongest possible validation, since this exact repro is
-already in hand.
+**Re-validated, with a real detour along the way.** Re-corrupting the
+superblock and re-running `fsck -y` through the actual page, twice, kept
+reproducing the *exact* original failure even after a plugin reinstall -
+which looked at first like the fix genuinely didn't work. It wasn't the
+fix: see "A stale browser tab can run old JS after a plugin update..."
+above, updated with what was actually going on - a one-year
+`Cache-Control` on this plugin's own JS meant the real page kept
+executing the pre-fix script no matter how it was reloaded.
+
+Rather than keep fighting the browser's cache, validated the fix
+directly against the real protocol instead: issued the exact same
+`XMLHttpRequest` `streamCommand()` builds - same URL, same
+`cmd=fsck_repair&args[device]=/dev/sda2` body - by hand from the browser
+console, against the same real corrupted `/dev/sda2` on `GPIOTest`, with
+`onprogress`/`onload` instrumented to report `xhr.responseText`'s own
+length and whether it contained `SDCR_EXITCODE` at each point. Real
+result: a genuine `fsck -y exit code: 1` run, `xhr.responseText` **did**
+contain the trailing `SDCR_EXITCODE:1` marker in full by the time
+`onload` fired (confirmed in both the final `onprogress` event and
+`onload` itself - `hasMarker: true` both times, exact tail
+`...=== sdcard_fsck_repair.sh finished (exit 1) ===\n\nSDCR_EXITCODE:1\n`)
+- the fixed parsing logic, run against this exact real response, correctly
+computes `exitOk = false`.
+
+**Honest scope of what this does and doesn't prove**: this confirms the
+fix's actual parsing logic is correct against a real large response on
+real hardware - the same logic `streamCommand()` now runs, exercised the
+same way, over the same wire. It does not independently reconfirm that
+`runFsckRepair()`'s `alert()`-and-return branch fires correctly end-to-end
+through the literal page UI, since the browser-caching issue above
+blocked getting a genuinely fresh page to click through - that part
+relies on code review (the branch is simple, unconditional `if (!ok)`
+logic, already read carefully once already) rather than a fresh
+real-hardware UI observation.
 
 ## The real cause of the failed delete: the script itself was never executable (real bug, confirmed on real hardware)
 
@@ -2756,9 +2802,16 @@ Confirmed working end-to-end:
     "Pulling the reader mid-carve - attempted, genuinely inconclusive..."
     above): a genuine mid-scan USB disconnect, confirmed at the kernel
     level in `syslog`, still didn't produce a nonzero exit from
-    `sdcard_carve.sh` - `photorec` finished cleanly anyway. Still not
-    validated: `runCarve()`'s failure branch (this attempt didn't hit
-    it), and `runFsckRepair()`'s entirely (not attempted yet).
+    `sdcard_carve.sh` - `photorec` finished cleanly anyway. The
+    `fsck_repair` half surfaced a real, separate bug first - see "A large
+    real `fsck -y` response lost its own exit-code marker..." above -
+    fixed, and the fix's actual parsing logic was verified directly
+    against a real repair on real hardware (`exitOk` computed `false` for
+    a genuine exit code 1). Still not independently confirmed through the
+    literal page UI end-to-end, blocked by the browser-caching issue in
+    "A stale browser tab..." above rather than by anything wrong with the
+    fix itself. `runCarve()`'s own failure branch also remains
+    unvalidated (the disconnect attempt didn't hit it).
 19. ~~The `sdcard_delete_artifact.sh` executable-bit fix~~ - **confirmed**
     on real hardware (see "The real cause of the failed delete..." above):
     `git update-index --chmod=+x` corrected the tracked mode, and a real
