@@ -99,6 +99,7 @@
         xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         xhr.onprogress = function (e) {
             var full = e.currentTarget.responseText || e.currentTarget.response || '';
+            console.log('SDCR_DIAG progress', full.length, full.indexOf('SDCR_EXITCODE') !== -1);
             if (full.length > lastLen) {
                 logEl.textContent += full.substring(lastLen);
                 lastLen = full.length;
@@ -131,6 +132,14 @@
             // xhr.status===200 path and silently proceeded to retry the
             // mount as if the repair had cleanly succeeded.
             var full = xhr.responseText || xhr.response || '';
+            console.log('SDCR_DIAG onload', JSON.stringify({
+                status: xhr.status,
+                readyState: xhr.readyState,
+                fullLen: full.length,
+                lastLen: lastLen,
+                hasMarkerInFull: full.indexOf('SDCR_EXITCODE') !== -1,
+                fullTail: full.slice(-120)
+            }));
             if (full.length > lastLen) {
                 logEl.textContent += full.substring(lastLen);
                 lastLen = full.length;
