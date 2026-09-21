@@ -94,14 +94,27 @@ for a full worked example with real log output, or
 [How This Plugin Works](how-it-works.md) for a plain step-by-step
 reference.
 
-## Not yet in FPP's Plugin Manager search
+## Installing from FPP's Plugin Manager (recommended)
 
-FPP's "Search Plugins" only searches the community-curated
-`pluginList.json` in `FalconChristmas/fpp-data`, which requires a PR and
-passing automated checks (license present, tested against latest release +
-nightly, safe scripting) - not just having a public repo with a valid
-`pluginInfo.json`. Until that submission happens, install manually for
-development:
+This plugin is now listed in the community-curated `pluginList.json` in
+`FalconChristmas/fpp-data` - the same source FPP's own "Search Plugins"
+searches, which requires a PR and passing automated checks (license
+present, tested against latest release + nightly, safe scripting), not
+just having a public repo with a valid `pluginInfo.json`. Most users
+should just install it the normal way: **Content Setup -> Plugin
+Manager -> Available**, search "SDCard Recover", click **Install**.
+
+If it doesn't show up there yet on a given device, that's very likely
+just catalog propagation lag, not evidence the listing isn't live -
+FPP devices fetch/cache that community list rather than querying it
+live on every search. Give it some time, or fall back to the manual
+install below in the meantime.
+
+## Manual/developer install
+
+Useful for testing an unreleased change before it's on `main`, or as a
+fallback while a device's own plugin catalog catches up to the listing
+above:
 
 ```bash
 ssh fpp@<your-fpp-ip>
@@ -130,16 +143,18 @@ normally shows you - `plugin.php`'s `file=` route only ever serves raw
 bytes, it never executes anything, and the same distinction applies here:
 the Plugin Manager needs the actual JSON, not a GitHub HTML page).
 
-**Known cosmetic limitation of this path**: the manually-loaded "Available"
-card shows initials ("SR") instead of the real icon, and this is not
-fixable from the plugin's side. Confirmed in FPP's own
+**Known cosmetic limitation of the manual-URL path specifically** (not the
+official listing above, now that it exists): the manually-loaded
+"Available" card shows initials ("SR") instead of the real icon, and this
+isn't fixable from the plugin's side. Confirmed in FPP's own
 `www/api/controllers/plugin.php` (`PluginServeIcon()`): the icon is resolved
 in exactly three tiers - (1) a local `icon.png` in the plugin's own
 directory, (2) that installed plugin's own `pluginInfo.json` `iconURL`, (3)
 the `iconURL` from the *official, server-cached* `pluginList.json` entry for
-that repo. A manually-loaded, not-yet-installed, unlisted plugin satisfies
-none of these - the pasted URL only ever lives in the browser's own JS
-memory, never reaches the server, and there is no fourth tier for that. The
-icon displays correctly the moment the plugin is actually installed (Tier 1
-applies as soon as `icon.png` exists on disk) - this is purely a pre-install
-preview quirk of the developer-only manual-URL workflow.
+that repo. A manually-loaded, not-yet-installed plugin pasted in this way
+satisfies none of these - the pasted URL only ever lives in the browser's
+own JS memory, never reaches the server. The icon displays correctly the
+moment the plugin is actually installed (Tier 1 applies as soon as
+`icon.png` exists on disk), and browsing to it through the official
+listing above should show the real icon even before installing (Tier 3),
+now that a real `pluginList.json` entry exists to serve it from.

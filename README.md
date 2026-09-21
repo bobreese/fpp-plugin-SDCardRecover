@@ -45,7 +45,7 @@ without running any destructive repair unless you explicitly ask for it.
 - [Your First Recovery Session, End to End](docs/first-recovery-walkthrough.md) - a full worked example with real log output, start to finish
 - [Architecture](docs/architecture.md) - pluginInfo.json schema and FPP page routing, confirmed against live FPP source
 - [Directory Layout](docs/directory-layout.md)
-- [Installing This Plugin](docs/installing.md) - FPP version requirements, which device to install it on, and manual-install steps until it's in FPP's Plugin Manager search
+- [Installing This Plugin](docs/installing.md) - FPP version requirements, which device to install it on, and how to install it (now searchable directly in FPP's own Plugin Manager - manual/developer install steps are still there too, for testing unreleased changes)
 - [Privacy Declaration](docs/privacy.md) - what's declared in pluginInfo.json's privacy block, and why
 - [Testing & Real-Hardware Findings](docs/testing.md) - every real bug found on real hardware, what's validated, and what still isn't
 
