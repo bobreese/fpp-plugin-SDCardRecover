@@ -2595,6 +2595,95 @@ control run) both left it carrying the source card's `Pi3Test` identity -
 restoring the operator's own backup afterward is the way back, same as
 after the original three attempts.
 
+## A fifth attempt, traced instead of assumed - resolves the open question above, but not the way expected (real hardware)
+
+The previous attempt's own honest caveat - whether the HTTP settings
+API's `PUT` genuinely funnels through the same code path `fppd`'s
+internal `setSetting()` uses - finally got a real answer, once real SSH
+access made source-level investigation and process tracing practical.
+The answer is no, and the real picture is more complicated than the
+original finding described.
+
+Traced two things simultaneously across a real racy restore: `strace -tt
+-p <fppd's real PID> -e trace=openat,read,write,close,flock` (genuine
+microsecond timestamps) and `inotifywait -m` on `/home/fpp/media` (to
+catch every writer touching the file, not just `fppd` - though its own
+`--timefmt "%s.%N"` turned out to silently drop to second-only
+precision, `%N` not being a real `strftime()` specifier despite looking
+like one; a real mistake in this session's own test setup, left in
+rather than edited out, and the reason this attempt leans on `strace`'s
+genuinely precise timestamps instead). Reading `settings.cpp` and
+`common_mini.cpp` directly first, before tracing anything, paid off:
+
+- `SettingsConfig::setSetting()` holds `settingsMutex` across both
+  `GetFileContents()` (a real `flock(LOCK_SH)` read) and
+  `PutFileContents()` (a real `flock(LOCK_EX)`, but a plain
+  `fopen(path, "w")` truncate-write, not rename-based) - internally
+  consistent, but that mutex is fppd's own, invisible to anything
+  outside its process.
+- `sdcard_recover.sh`'s `rsync` (no `--inplace`) writes the settings
+  file the safe way - temp file in the same directory, then `rename()`,
+  atomic at the filesystem level. Confirmed live in the `inotifywait`
+  trace: `OPEN .settings.9KkvDI` -> `MODIFY` -> `CLOSE_WRITE` ->
+  `MOVED_FROM .settings.9KkvDI` -> `MOVED_TO settings`, rsync's own
+  temp-name convention exactly.
+- But `PutSetting()` (`www/api/controllers/settings.php`, what
+  `PUT /api/settings/<key>` actually calls) unconditionally calls a
+  **PHP** function, `WriteSettingToFile()` - never fppd's C++ code
+  directly. For `LogLevel_*` specifically (this session's hammering
+  target throughout every item-4 attempt) it *additionally* sends
+  `fppd` a command afterward, but that command only updates fppd's
+  in-memory log level - it never calls `setSetting(..., persist=true)`
+  on fppd's own side, since PHP already persisted the value itself.
+  Confirmed directly, not inferred: every single one of fppd's own opens
+  of `/home/fpp/media/settings` during this run's entire race window was
+  `O_RDONLY` - ten of them, zero writes - meaning **every prior item-4
+  attempt this session, including the three manual ones and the fourth
+  scripted one, never actually exercised fppd's own write path at all**.
+  They tested something real, just not the specific mechanism the
+  original finding describes.
+- `WriteSettingToFile()` itself (`www/common.php`) has a real latent bug
+  worth naming even though it's FPP core, not this plugin: it takes
+  `flock(LOCK_EX)` on one file descriptor (`fopen($filename, "c+")`) but
+  does the actual write via `file_put_contents()`, which opens a
+  completely separate descriptor the lock never covers. The lock still
+  serializes two concurrent calls to `WriteSettingToFile()` itself
+  against each other (both take the same flock before proceeding), just
+  not against anything else touching the file a different way -
+  `rsync`'s `rename()` included.
+- A third, independent writer showed up in the trace unexplained at
+  first: `OPEN sedeoiEAF` -> `MODIFY` -> `CLOSE_WRITE` -> `MOVED_FROM`
+  -> `MOVED_TO settings`, a `sed`-style random-suffix temp-rename
+  pattern neither `rsync` nor PHP's own code produces. Traced to FPP's
+  **shell-level** `setSetting()` (`scripts/common`) - this plugin's own
+  `setSetting restartFlag 1` call, made automatically right after every
+  Config restore. It does two separate `sed -i` passes (delete the old
+  line, append the new one; strip stray NULs), each its own
+  temp-file-and-rename, gated by a *non-blocking* `flock -n ${FD} ||
+  exit 1` that gives up silently rather than waiting.
+
+Three independent writers, three different locking conventions, none of
+which coordinate with each other - a real, more complete picture than
+the original single-mechanism concern, uncovered by tracing rather than
+assumed. And still, in this run: no corruption. 10 hammering writes
+landed inside the restore's own ~0.4-second window (denser real overlap
+than any earlier attempt), `HostName` correctly read `Pi3Test`, and -
+checked specifically because the shell `setSetting()`'s non-blocking
+lock made a silent failure plausible - `restartFlag` was correctly set
+to `1` despite the contention, not silently dropped.
+
+**Honest status, again**: not proven unsafe, not proven safe, and now
+for a more precise reason than before - this attempt, like the four
+before it, never exercised fppd's own C++ write path, the one the
+original finding is actually about. What that would take: finding or
+engineering something that makes fppd itself call
+`setSetting(key, value, true)` internally, from something other than
+this specific HTTP route - not yet identified. `WriteSettingToFile()`'s
+own flock-doesn't-cover-the-real-write gap, and the shell `setSetting()`'s
+silent-failure-under-contention behavior, are both real, independently
+interesting findings on their own, worth being aware of even though
+neither is what item 4 originally set out to test.
+
 ## Added: capped Step 5 at 2 destinations, with a fixed run order and a zip-ready prompt
 
 Not a bug - a requested UX change to Step 5, once real-hardware testing
@@ -2923,14 +3012,22 @@ Confirmed working end-to-end:
    `restartFlag` is set now, which shrinks the risk window, but doesn't
    change that fppd could in principle still be running when the write
    happens. A real architectural change, still not attempted. Separately,
-   the underlying race itself (not this fix) got four real attempts on
-   real hardware now - three manual (see "Config restore racing a live
-   `fppd`..." above) and one scripted, denser, and confirmed to actually
-   span the real sub-second write window (see "A fourth attempt, scripted
-   instead of hand-timed..." above) - still genuinely inconclusive: no
-   corruption caught in any of the four, but final-state-only checking
-   and an unconfirmed write-path assumption keep even the scripted
-   attempt from being a real test of whether this specific fix is needed.
+   the underlying race itself (not this fix) got five real attempts on
+   real hardware now - three manual, one scripted-but-unverified-write-path
+   (see "Config restore racing a live `fppd`..." and "A fourth attempt,
+   scripted instead of hand-timed..." above), and a fifth, traced with
+   `strace`+`inotifywait` rather than assumed (see "A fifth attempt,
+   traced instead of assumed..." above) - which finally answered the
+   fourth attempt's own open question, just not the way expected: the
+   HTTP settings API never actually exercises fppd's own C++ write path
+   at all, for the specific setting this session hammered throughout
+   every attempt. All five attempts, this one included, have tested real
+   races between real writers of this file - just never the specific
+   fppd-vs-rsync mechanism the original finding describes. No corruption
+   caught in any of the five. What a real test of fppd's own write path
+   specifically would need: something that makes fppd itself call
+   `setSetting(key, value, true)` internally, from somewhere other than
+   this HTTP route - not yet identified.
 5. ~~The new global `flock` lock in `common.sh`~~ - **confirmed** on real
    hardware (see "The global `flock` lock, confirmed under genuine
    concurrency..." above): a deep scan held the lock for nearly 9 minutes
