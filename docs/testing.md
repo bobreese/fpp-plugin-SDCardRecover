@@ -2379,6 +2379,60 @@ synchronize the two operations (e.g. a wrapper pausing `sdcard_recover.sh`
 mid-`rsync`, or `fppd` instrumented to log exactly when it re-reads and
 patches the settings file).
 
+## A fourth attempt, scripted instead of hand-timed - still inconclusive, but more rigorous (real hardware)
+
+The three manual attempts above all missed a confirmed sub-second window
+by hand - not surprising, and not strong evidence either way. A fourth
+attempt on `GPIOTest`, this time scripted rather than manually timed,
+using a real backup/restore cycle (the operator's own `GPIOTest` backup)
+to make repeating the real, live Config-restore-onto-`GPIOTest` case
+safe to attempt twice:
+
+- **Racy run**: a tight loop of real `PUT /api/settings/LogLevel_General`
+  calls (FPP's own live settings API, confirmed genuine by first probing
+  its request/response shape directly) - 832 calls over ~15.8 seconds, a
+  new call roughly every 19ms - started at the same moment as clicking
+  Recover (local restore, Config category) on the real, previously-used
+  source card. The restore itself logged start-to-finish inside a single
+  second (`05:06:08`), confirming the same sub-second window as before -
+  and this loop's density and duration comfortably spanned it many times
+  over, not just once by chance.
+- **Result**: `HostName` correctly read `Pi3Test` (the restore's real
+  content, matching the source card) - not reverted to the pre-restore
+  `GPIOTest`. The hammering loop's own last write also survived cleanly.
+  No corruption in either direction.
+- **Control run**: restored the operator's `GPIOTest` backup to reset
+  state, then repeated the *exact same* Config restore with no hammering
+  at all, to have a clean baseline to compare against rather than relying
+  on assumptions about what "should" happen. Result: identical
+  `HostName`/`HostDescription` to the racy run. `LogLevel_General` in the
+  control run stayed at its pre-test value (`info`, never touched by the
+  restore at all) - confirming that field was never actually part of what
+  `sdcard_recover.sh`'s file list restores, so its survival in the racy
+  run isn't itself meaningful; `HostName` was the real comparison point,
+  and it matched cleanly between both runs.
+
+**Why this still doesn't close the item**, despite being denser and
+better-targeted than the three manual attempts: only *final* state was
+checked after each run, not continuous state during it - a transient
+mid-loop reversion that a later iteration of the same loop happened to
+silently re-correct (by re-reading the by-then-correct file and patching
+its own key back in) would be invisible to this method. Separately,
+whether the HTTP settings API's `PUT` genuinely funnels through the same
+whole-file read-patch-write path `fppd`'s internal `setSetting()` uses -
+the actual mechanism the original finding is about - was never
+independently confirmed; it was assumed reasonable given `restartFlag`'s
+own precedent of going through this exact API, but not verified against
+`fppd`'s own source or logs for this session. A real find either way
+would need continuous polling during the write window and/or independent
+confirmation of the write path, not just a denser retry of the same
+approach.
+
+Two live Config restores onto `GPIOTest` in this pass (racy run, then
+control run) both left it carrying the source card's `Pi3Test` identity -
+restoring the operator's own backup afterward is the way back, same as
+after the original three attempts.
+
 ## Added: capped Step 5 at 2 destinations, with a fixed run order and a zip-ready prompt
 
 Not a bug - a requested UX change to Step 5, once real-hardware testing
@@ -2685,11 +2739,14 @@ Confirmed working end-to-end:
    `restartFlag` is set now, which shrinks the risk window, but doesn't
    change that fppd could in principle still be running when the write
    happens. A real architectural change, still not attempted. Separately,
-   the underlying race itself (not this fix) got three real attempts on
-   real hardware - see "Config restore racing a live `fppd`..." above -
-   genuinely inconclusive: no corruption caught, but the write window was
-   confirmed sub-second, which makes three manual attempts weak evidence
-   either way, not a real test of whether this specific fix is needed.
+   the underlying race itself (not this fix) got four real attempts on
+   real hardware now - three manual (see "Config restore racing a live
+   `fppd`..." above) and one scripted, denser, and confirmed to actually
+   span the real sub-second write window (see "A fourth attempt, scripted
+   instead of hand-timed..." above) - still genuinely inconclusive: no
+   corruption caught in any of the four, but final-state-only checking
+   and an unconfirmed write-path assumption keep even the scripted
+   attempt from being a real test of whether this specific fix is needed.
 5. ~~The new global `flock` lock in `common.sh`~~ - **confirmed** on real
    hardware (see "The global `flock` lock, confirmed under genuine
    concurrency..." above): a deep scan held the lock for nearly 9 minutes
