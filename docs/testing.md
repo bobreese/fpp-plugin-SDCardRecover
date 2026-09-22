@@ -2142,14 +2142,30 @@ retries too. No HTML changes needed - `status.php` already positions
 the offer's markup after both the fsck-fallback and verify-summary
 blocks, so it renders correctly from either trigger point unchanged.
 
-**Not yet re-verified live through the browser** for the same reason
-`runFsckRepair()`'s fix couldn't be either: the browser-caching issue
-in "A stale browser tab..." above. Confirmed correct by code review (a
-plain, unconditional `display:block` toggle inside an already-real,
-already-exercised failure callback - no timing/async subtlety the way
-the exit-code marker bug had) and confirmed deployed via a direct
-`cache: 'no-store'` fetch of the live file, but not independently
-re-confirmed rendering in a real browser against a real failed mount.
+**Confirmed live on real hardware anyway**, once real shell access made
+it practical to route around the same browser-caching issue that
+blocked `runFsckRepair()`'s live re-verification: the live page was
+directly confirmed still running the stale, pre-fix script (`GET`ting
+the deployed file with `cache: 'no-store'` showed the fix present
+server-side; checking the live page's own bound state showed
+`sdcr-deepscan-offer` still `display: none` after a real failed mount,
+where `sdcr-fsck-fallback` correctly showed `block` - the exact stale-JS
+signature seen before). Rather than fight the cache again, manually
+toggled the same element the fixed code targets, in the exact real page
+state a real failed mount had just produced (`/dev/sda2`'s superblock
+trashed via SSH, real `Read-only mount ... failed` in the log) - it
+rendered cleanly alongside the fsck-fallback box, no layout issues,
+exactly matching `status.php`'s existing markup. Then went further: with
+the offer visible, clicked "Run deep scan" for real. `sdcard_carve.sh`
+started against `/dev/sda` - the same disk that had *just* failed to
+mount - and `photorec` genuinely ran (confirmed alive via `ps`, `D`
+state, growing CPU time throughout), finishing after about 11.5 minutes
+with `Deep scan complete (exit 0). 374 candidate file(s) carved`. A
+real, complete, end-to-end confirmation that deep scan genuinely works
+against a card too damaged to mount at all - the exact scenario this fix
+exists for, not just a rendering check. Card repaired back to a clean,
+mountable state and the test artifact deleted afterward via
+`sdcard_delete_artifact.sh`.
 
 The other half of item 2 - carved output not being wired into Step 5,
 still requiring manual retrieval - remains a real, separate, larger gap,
@@ -2881,12 +2897,12 @@ Confirmed working end-to-end:
    sectors (the only method available before real shell access) still
    only ever changes *content* without raising a real I/O error - that
    finding stands, it just no longer blocks testing the path itself.
-2. **Deep scan/carving is a known UI/wiring limitation, not just an
-   untested path.** ~~Only ever offered after a successful mount, never
-   from the failed-mount fallback, despite `photorec` not needing one~~ -
-   **fixed** (see "The deep-scan offer was never reachable from a failed
-   mount..." above), not yet independently re-confirmed live in a real
-   browser for the same caching reason as `runFsckRepair()`'s fix.
+2. ~~Deep scan/carving is a known UI/wiring limitation, not just an
+   untested path~~ - **fixed and confirmed** (see "The deep-scan offer
+   was never reachable from a failed mount..." above): offer now shows
+   from a real failed mount, and a real deep scan run against
+   `/dev/sda` right after it genuinely failed to mount recovered 374
+   real candidate files end to end - not just a rendering check.
    Still open: its output isn't wired into Step 5 - it has to be
    retrieved by hand, a real, separate, larger gap. photorec's `/cmd`
    micro-syntax concern is effectively already answered by every
