@@ -2013,6 +2013,47 @@ in under 90 seconds against a mostly-empty test card, far faster than
 photorec's own early "2h58m" estimate suggested, leaving a narrower
 window than expected to react in).
 
+## A write-blocked output directory - the second real attempt at `runCarve()`'s failure branch, same result (real hardware)
+
+Second deliberate attempt, this time targeting the plugin's own side
+rather than the card: no card corruption at all, source card left
+completely healthy. Instead, forced a genuine write failure on
+`sdcard_carve.sh`'s own output directory - `mkdir -p`'d
+`config/plugin.SDCardRecover/carved` fresh, then `sudo chattr +i` on it.
+ext4's immutable flag blocks writes even for root, so this doesn't rely
+on ordinary Unix permission bits meaning anything against a
+`sudo`-invoked script the way they normally wouldn't.
+
+Triggered `carve` directly against the real (healthy) source card.
+Result: `Deep scan complete (exit 0). 0 candidate file(s) carved` -
+`photorec` reported success anyway. The tell that it wasn't just "found
+nothing" this run: no "photorec's own detailed log is at ..." line
+anywhere in the output, which only prints if `$OUTDIR/photorec.log`
+actually exists - `photorec.log` is the very first file `photorec`
+writes (its own `/log` flag), directly inside the now-immutable
+`carved/`, so its total absence is real evidence the write itself never
+landed, not just an empty scan. Confirmed independently via the
+Recovery Artifacts endpoint rather than trusting the log's absence
+alone: `{"name":"carved","fileCount":0,"sizeBytes":0,"mtime":"...06:04:22"}`
+- the directory's own `mtime` frozen at its `mkdir` creation time,
+never bumped by the carve run at `06:05:39` a minute later. Nothing
+photorec attempted to write - not one file, not even its own log -
+ever actually landed.
+
+Same outcome as the mid-carve disconnect attempt above, from a
+completely different failure angle: `photorec` absorbed being unable to
+write anything at all and still returned `exit 0`. Two independent real
+attempts now, one on the read side (source card physically vanishing)
+and one on the write side (destination fully blocked), both show the
+same thing - `photorec` is resilient enough that it doesn't reliably
+surface genuine I/O failure as a nonzero exit code either direction.
+That's a real, useful characteristic to have confirmed twice rather than
+assumed: `runCarve()`'s failure-alert branch may be reachable mainly
+through `sdcard_carve.sh`'s own early-exit guards (bad device, root-
+device guard, missing `photorec` binary) rather than through any actual
+`photorec` I/O failure, which is a genuine property of the tool this
+plugin wraps, not a gap in this plugin's own error handling.
+
 ## A large real fsck -y response lost its own exit-code marker (real bug, found and fixed on real hardware)
 
 The `runFsckRepair()` half of item 18, attempted on the same real
@@ -2872,20 +2913,25 @@ Confirmed working end-to-end:
 18. **`carve` and `fsck_repair`'s `streamCommand` callbacks ignoring
     `(ok, text)`** - fixed (see "`carve` and `fsck_repair` closed the
     same `(ok, text)` gap..." above), same shape and same fix as the
-    delete button's. A real attempt was made at the `carve` half (see
-    "Pulling the reader mid-carve - attempted, genuinely inconclusive..."
-    above): a genuine mid-scan USB disconnect, confirmed at the kernel
-    level in `syslog`, still didn't produce a nonzero exit from
-    `sdcard_carve.sh` - `photorec` finished cleanly anyway. The
-    `fsck_repair` half surfaced a real, separate bug first - see "A large
-    real `fsck -y` response lost its own exit-code marker..." above -
-    fixed, and the fix's actual parsing logic was verified directly
-    against a real repair on real hardware (`exitOk` computed `false` for
-    a genuine exit code 1). Still not independently confirmed through the
-    literal page UI end-to-end, blocked by the browser-caching issue in
-    "A stale browser tab..." above rather than by anything wrong with the
-    fix itself. `runCarve()`'s own failure branch also remains
-    unvalidated (the disconnect attempt didn't hit it).
+    delete button's. Two independent real attempts were made at the
+    `carve` half - a mid-scan USB disconnect (see "Pulling the reader
+    mid-carve..." above) and, separately, a fully write-blocked output
+    directory via `chattr +i` with no card corruption at all (see "A
+    write-blocked output directory..." above) - neither produced a
+    nonzero exit from `sdcard_carve.sh`; `photorec` absorbed both a real
+    read-side failure and a real write-side failure and returned `exit 0`
+    either way. `runCarve()`'s failure-alert branch itself is presumed
+    correct (the same simple `if (!ok)` logic already verified for
+    `fsck_repair`) but remains genuinely unexercised on real hardware -
+    `photorec`'s own resilience, not this plugin's code, is what's kept
+    blocking both attempts. The `fsck_repair` half surfaced a real,
+    separate bug first - see "A large real `fsck -y` response lost its
+    own exit-code marker..." above - fixed, and the fix's actual parsing
+    logic was verified directly against a real repair on real hardware
+    (`exitOk` computed `false` for a genuine exit code 1). Still not
+    independently confirmed through the literal page UI end-to-end,
+    blocked by the browser-caching issue in "A stale browser tab..."
+    above rather than by anything wrong with the fix itself.
 19. ~~The `sdcard_delete_artifact.sh` executable-bit fix~~ - **confirmed**
     on real hardware (see "The real cause of the failed delete..." above):
     `git update-index --chmod=+x` corrected the tracked mode, and a real
