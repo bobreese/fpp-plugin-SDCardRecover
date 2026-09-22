@@ -371,6 +371,21 @@
                 runVerify();
             } else {
                 $('#sdcr-fsck-fallback').style.display = 'block';
+                // Found in fpp-data review: the deep-scan offer was only ever
+                // shown from runVerify()'s own success path, never from here -
+                // despite sdcard_carve.sh (photorec) working directly against
+                // the whole raw device and never needing a mountable
+                // filesystem at all. A card too damaged to mount even after
+                // the fsck -n/-y fallback chain below left the user with no
+                // way to reach deep scan through the UI, the one recovery
+                // path least dependent on the filesystem's own health -
+                // exactly the case it matters most for. Shown here
+                // immediately, alongside the fsck fallback rather than gated
+                // behind it, since deep scan doesn't need fsck to run or
+                // succeed first; nothing here ever hides it again, so it
+                // stays available through any number of failed fsck -n/-y
+                // retries too.
+                $('#sdcr-deepscan-offer').style.display = 'block';
             }
         });
     }

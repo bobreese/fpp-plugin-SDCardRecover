@@ -2118,6 +2118,47 @@ device guard, missing `photorec` binary) rather than through any actual
 `photorec` I/O failure, which is a genuine property of the tool this
 plugin wraps, not a gap in this plugin's own error handling.
 
+## The deep-scan offer was never reachable from a failed mount (real gap, fixed)
+
+Half of item 2 below was a real, fixable gap rather than just an
+untested path: `sdcard_carve.sh` (`photorec`) works directly against
+the whole raw device and has never needed a mountable filesystem at
+all - it's the one recovery path in this plugin LEAST dependent on the
+filesystem's own health. But `#sdcr-deepscan-offer` was only ever shown
+from `runVerify()`'s own success callback, which is only reachable
+after a mount actually succeeds. A card damaged badly enough that mount
+fails outright - even after the full `fsck -n`/`fsck -y` fallback chain
+- left the user stuck with no UI path to deep scan at all, despite it
+being exactly the tool for that situation.
+
+The fix, in `runMount()`'s existing failure branch: show
+`#sdcr-deepscan-offer` immediately alongside `#sdcr-fsck-fallback`, not
+gated behind it - the two are independent alternatives, not a sequence,
+so there's no reason to make a user exhaust the (possibly destructive)
+`fsck -y` path first just to reach the one that never touches the card
+at all. Nothing in the fallback chain hides it again once shown, so it
+stays available through any number of failed `fsck -n`/`fsck -y`
+retries too. No HTML changes needed - `status.php` already positions
+the offer's markup after both the fsck-fallback and verify-summary
+blocks, so it renders correctly from either trigger point unchanged.
+
+**Not yet re-verified live through the browser** for the same reason
+`runFsckRepair()`'s fix couldn't be either: the browser-caching issue
+in "A stale browser tab..." above. Confirmed correct by code review (a
+plain, unconditional `display:block` toggle inside an already-real,
+already-exercised failure callback - no timing/async subtlety the way
+the exit-code marker bug had) and confirmed deployed via a direct
+`cache: 'no-store'` fetch of the live file, but not independently
+re-confirmed rendering in a real browser against a real failed mount.
+
+The other half of item 2 - carved output not being wired into Step 5,
+still requiring manual retrieval - remains a real, separate, larger gap,
+not addressed here. The `photorec` `/cmd` syntax concern in the same
+item is effectively already answered by every confirmed real carve run
+elsewhere in this file (326, then 359, then 326 again candidates found
+against the exact `testdisk` package `GPIOTest` ships) - not something
+this session re-tested deliberately, but not genuinely open either.
+
 ## A large real fsck -y response lost its own exit-code marker (real bug, found and fixed on real hardware)
 
 The `runFsckRepair()` half of item 18, attempted on the same real
@@ -2841,15 +2882,17 @@ Confirmed working end-to-end:
    only ever changes *content* without raising a real I/O error - that
    finding stands, it just no longer blocks testing the path itself.
 2. **Deep scan/carving is a known UI/wiring limitation, not just an
-   untested path.** As documented above, it's only ever offered after a
-   successful mount (never from the failed-mount fallback, despite
-   `photorec` not needing one), and its output isn't wired into Step 5 -
-   it has to be retrieved by hand. On top of that gap, photorec's `/cmd`
-   micro-syntax is finicky and version-dependent: the exact
-   extension-whitelist syntax in `sdcard_carve.sh` still needs to be
-   tested against the `testdisk` package version FPP actually ships, and
-   may need `partition_order` / `search` flags adjusted. The path has not
-   been exercised on real hardware at all yet.
+   untested path.** ~~Only ever offered after a successful mount, never
+   from the failed-mount fallback, despite `photorec` not needing one~~ -
+   **fixed** (see "The deep-scan offer was never reachable from a failed
+   mount..." above), not yet independently re-confirmed live in a real
+   browser for the same caching reason as `runFsckRepair()`'s fix.
+   Still open: its output isn't wired into Step 5 - it has to be
+   retrieved by hand, a real, separate, larger gap. photorec's `/cmd`
+   micro-syntax concern is effectively already answered by every
+   confirmed real carve run elsewhere in this file - genuinely exercised
+   against the real `testdisk` package `GPIOTest` ships, just never
+   called out as answering this specific item before now.
 3. ~~Sudo/permissions~~ (see "Sudo/permissions, checked against real log
    history..." above) - **confirmed**, with the caveat narrowed by that
    section: no per-plugin sudoers entry is needed (FPP's stock images
