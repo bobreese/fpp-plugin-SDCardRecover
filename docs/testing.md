@@ -139,6 +139,70 @@ two more real things:
   it specifically, matching FPP's own convention, while still walking
   everything else under `config/` as before.
 
+## A genuine I/O read error, confirmed without real damaged hardware at all (real hardware, virtual device)
+
+Item 1 in "Not yet validated" below had sat open the whole project:
+real SD cards, even ones deliberately corrupted with `dd if=/dev/urandom`,
+only ever change *content* - flash storage returns whatever bytes are
+physically there, corrupted or not, without ever raising a genuine I/O
+error unless the hardware itself is actually failing. `sdcard_verify.sh`'s
+`dd`-based check can only ever catch a real read failure, by design; every
+real-hardware test so far had only ever exercised the "wrong content, no
+error" side of that, never the "genuine I/O error" side the docs called
+out as needing something real SD hardware can't be made to do on demand.
+
+Closed out on `GPIOTest` itself, once real shell access made it
+practical, using device-mapper rather than real damaged media:
+
+1. Built a small ext4 image (`dd` + `mkfs.ext4`), mounted it read-write,
+   and populated it with the plugin's real directory layout - a few tiny
+   "good" files (`config/config.json`, `sequences/show.fseq`,
+   `settings`, `timezone`) plus one 8 MB `music/badfile.mp3` written
+   last. `filefrag -v` confirmed exactly where each file's blocks landed
+   - the four good files all sat at blocks 8705-8708, `badfile.mp3` at
+   8192 contiguous blocks starting at 10241, cleanly separated.
+2. `dm-flakey` turned out not to be an option at all - not compiled into
+   this kernel (`modprobe dm-flakey` failed outright: "Module dm-flakey
+   not found"). `dm-mod`'s core `error` target was available with no
+   extra kernel module needed, so used that instead: a three-segment
+   `dmsetup` table over a loop device backing the same image - `linear`
+   passthrough for everything before `badfile.mp3`'s own sectors,
+   `error` (unconditional I/O failure, no timing/flakiness needed) for
+   exactly its sector range, `linear` passthrough for everything after.
+   A naive approach tried first - truncating the backing file short and
+   loop-mounting it - failed outright at `mount` time (`wrong fs type,
+   bad option, bad superblock`): the kernel checks a block device's real
+   size against what the filesystem's own superblock expects before
+   ever allowing the mount, so a loop device can't just be shorter than
+   the filesystem believes it is. The device-mapper table sidesteps this
+   entirely - the composite device's reported size matches the full
+   image exactly, only reads that actually land in `badfile.mp3`'s own
+   sectors ever hit the `error` target.
+3. Mounted the composite `/dev/mapper/` device read-only, confirmed by
+   hand first: all four good files read their real content correctly,
+   `dd if=badfile.mp3 of=/dev/null` failed immediately with a genuine
+   `Input/output error` - not corrupted content, not a hang, a real
+   kernel-level read failure.
+4. Mounted the same device at the plugin's own real `$MOUNTPOINT`
+   (`/mnt/DamagedSD`) and ran `sdcard_verify.sh` directly, unmodified -
+   it doesn't take a device argument, it just verifies whatever's
+   already mounted there, so this exercises the exact same code a real
+   Scan/Mount/Verify session would. Result: `UNREADABLE:
+   home/fpp/media/music/badfile.mp3 (0 bytes copied, 0.000419548 s, 0.0
+   kB/s)`, `Verification complete: 4 readable, 1 unreadable, 5 total
+   files`, and a correct `manifest.tsv` - `badfile.mp3` recorded as
+   `UNREADABLE` with its real 8388608-byte size (not zeroed out), so
+   `sdcard_evaluate.sh`'s unreadable-file count and
+   `sdcard_recover.sh`'s skip-on-`UNREADABLE` logic both get fed
+   correct data downstream too, not just the summary line.
+
+**Confirmed**: `sdcard_verify.sh`'s dd-based check genuinely does catch a
+real I/O read failure correctly - distinct from, and not to be confused
+with, the already-documented silent-corruption case above that a
+checksumless read test was never able to detect. Test rig fully torn
+down afterward (`umount`, `dmsetup remove`, `losetup -d`, temp files
+removed) - nothing left behind on the device.
+
 ## The fsck fallback UI could never actually appear (real bug, real corruption test)
 
 Deliberately trashing a real card's ext4 superblock (`dd if=/dev/urandom`
@@ -2762,17 +2826,20 @@ Confirmed working end-to-end:
 
 **Not yet validated:**
 
-1. **The "some files unreadable" path, with a genuine I/O error** (as
-   opposed to silent data corruption). Confirmed during testing: writing
-   `/dev/urandom` over live SD card sectors changes their *content* but
-   doesn't produce a real read failure - flash storage just returns
-   whatever's there, corrupted or not, without raising an I/O error unless
-   there's an actual unrecoverable hardware fault. `sdcard_verify.sh`'s
-   dd-based check can only ever catch genuine read failures, by design -
-   silent content corruption is outside what a checksumless read test can
-   detect. Testing this path properly needs a `dm-flakey`/loopback virtual
-   device configured to actually return I/O errors for chosen byte ranges,
-   which real SD hardware can't be made to do on demand.
+1. ~~The "some files unreadable" path, with a genuine I/O error~~ (as
+   opposed to silent data corruption) - **confirmed** (see "A genuine I/O
+   read error, confirmed without real damaged hardware at all..." above):
+   `dm-flakey` itself wasn't available on `GPIOTest`'s kernel, but
+   `dm-mod`'s core `error` target was, wired into a real ext4 image via a
+   `linear`/`error`/`linear` `dmsetup` table so exactly one file's own
+   sectors genuinely fail I/O while everything else reads normally.
+   `sdcard_verify.sh`, run unmodified against the plugin's real
+   `$MOUNTPOINT`, correctly caught it: `UNREADABLE:
+   .../badfile.mp3 (... Input/output error)`, correct manifest entry,
+   correct summary counts. Writing `/dev/urandom` over live SD card
+   sectors (the only method available before real shell access) still
+   only ever changes *content* without raising a real I/O error - that
+   finding stands, it just no longer blocks testing the path itself.
 2. **Deep scan/carving is a known UI/wiring limitation, not just an
    untested path.** As documented above, it's only ever offered after a
    successful mount (never from the failed-mount fallback, despite
