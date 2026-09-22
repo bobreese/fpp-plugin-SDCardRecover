@@ -2628,12 +2628,29 @@ cycle reported real free space. All plugin-related network requests
 (`.../page=ajax.php&endpoint=evaluate`, the streamed commands around it)
 came back clean 200s, no JS console errors.
 
+**`EVAL_MOUNTPOINT`-vs-concurrent-recovery, confirmed on real hardware.**
+Checked the code before attempting anything: `sdcard_evaluate.sh` and
+`sdcard_recover.sh` both source `common.sh`, whose global `flock` lock
+(see "The global `flock` lock, confirmed under genuine concurrency..."
+above) unconditionally serializes every script in this plugin - so the
+two can never actually run concurrently at all, regardless of
+`EVAL_MOUNTPOINT`/`DEST_MOUNTPOINT` being separate paths. Confirmed live
+rather than left as a code-reading conclusion: fired a real `evaluate`
+request and a real `recover` (to the same attached USB drive) within
+milliseconds of each other. The `recover` request, arriving ~140ms in,
+was cleanly refused - `ERROR: sdcard_recover.sh could not start -
+another SDCard Recover operation is already running... SDCR_EXITCODE:1`
+- while `evaluate` ran its full course (~1.16s, including its own
+mount/`df`/unmount of the same drive) and returned a correct result. A
+follow-up `recover` attempt afterward started and ran normally, proving
+the refusal left no stuck lock or half-mounted state behind. Not a
+narrow escape - structurally impossible by the same mechanism already
+validated for carve-vs-scan.
+
 **Not yet validated**: a candidate with no real filesystem, or one that
 fails to mount, being skipped gracefully rather than breaking the rest
 of Evaluate (this session's candidate mounted cleanly on the first try,
-so that path was never actually exercised) - and that `EVAL_MOUNTPOINT`
-genuinely never collides with a concurrent Step 5 recovery to the same
-drive.
+so that path was never actually exercised).
 
 ## Sudo/permissions, checked against real log history (real hardware)
 
@@ -2901,7 +2918,12 @@ Confirmed working end-to-end:
     **confirmed** on real hardware (see "Added: Evaluate now shows free
     space on an already-attached USB drive too" above): a real attached
     Cruzer stick correctly showed `Free space on /dev/sdb1 (Cruzer) -
-    7.4 GB - fits` in the results table. Two narrower pieces are still
-    open: an unmountable candidate being skipped gracefully (never
-    exercised - this session's candidate mounted cleanly), and confirming
-    `EVAL_MOUNTPOINT` never collides with a concurrent Step 5 recovery.
+    7.4 GB - fits` in the results table. ~~`EVAL_MOUNTPOINT` never
+    colliding with a concurrent Step 5 recovery~~ - **confirmed** (see
+    "`EVAL_MOUNTPOINT`-vs-concurrent-recovery, confirmed on real
+    hardware..." above): the global `flock` lock makes this structurally
+    impossible, verified live by firing both at once and watching
+    `recover` get cleanly refused while `evaluate` ran to completion. One
+    narrower piece is still open: an unmountable candidate being skipped
+    gracefully (never exercised - this session's candidate mounted
+    cleanly).
