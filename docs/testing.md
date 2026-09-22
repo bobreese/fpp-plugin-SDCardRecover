@@ -2684,6 +2684,28 @@ silent-failure-under-contention behavior, are both real, independently
 interesting findings on their own, worth being aware of even though
 neither is what item 4 originally set out to test.
 
+**One more, found restoring `GPIOTest`'s own identity back afterward**:
+`sdcard_recover.sh`'s own safety backup - `cp -a` of the settings file,
+taken deliberately before every Config restore so a mistaken restore can
+be rolled back - was itself 0 bytes for this exact run
+(`settings.before-recover-20260922-065803`). Earlier backups from this
+same session (e.g. `...-20260922-051045`, 2026 bytes, correct content)
+were fine; only the one taken *during* this densest race was empty.
+Almost certainly the same non-atomic `WriteSettingToFile()` write caught
+mid-flight by `cp -a` - a plain file copy is just as unsynchronized a
+reader as anything else touching that file without coordination, and
+`cp -a` doesn't retry or verify. The irony: the one file this plugin
+writes specifically as a safety net against a bad restore turned out to
+be reachable by the very race the net exists to protect against.
+Recovered by falling back to an earlier known-good backup from the same
+session rather than the corrupted one - confirmed here rather than
+theorized, since restoring `GPIOTest`'s real identity after this test
+needed exactly that. Not yet fixed (a real fix would need the backup
+step itself to use something like `WriteFileAtomic()`'s pattern, or at
+minimum verify the copy isn't empty/truncated before trusting it) - filed
+here as a sixth, adjacent finding rather than a new numbered item, since
+it's a property of the backup step, not the restore race itself.
+
 ## Added: capped Step 5 at 2 destinations, with a fixed run order and a zip-ready prompt
 
 Not a bug - a requested UX change to Step 5, once real-hardware testing
