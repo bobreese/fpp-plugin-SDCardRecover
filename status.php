@@ -138,6 +138,14 @@
         <div class="sdcr-step-body">
             <div class="sdcr-dest-options">
                 <div class="sdcr-hint">Choose up to 2 destinations - if zip is included it always runs first, and restoring directly into this FPP's own folders always runs last.</div>
+                <label><input type="checkbox" name="sdcr-dest" value="zip"> Zip file (download to your computer)</label>
+                <br>
+                <label><input type="checkbox" name="sdcr-dest" value="usb"> A second attached USB drive (must already have a filesystem on it - this won't format one)
+                    <select id="sdcr-usb-target" disabled><option value="">Select a destination USB drive...</option></select>
+                    <button type="button" id="sdcr-btn-refresh-usb" class="btn btn-secondary" title="Rescan for destination drives - use this if you plugged one in after Step 1">Refresh</button>
+                </label>
+                <div class="sdcr-progress" id="sdcr-progress-usb-refresh" style="display:none;"><div class="sdcr-progress-bar"><div class="sdcr-progress-fill"></div></div></div>
+                <pre class="sdcr-log" id="sdcr-log-usb-refresh" style="display:none;"></pre>
                 <label><input type="checkbox" name="sdcr-dest" value="local"> Restore directly into this FPP's own media folders</label>
                 <div id="sdcr-local-categories" style="display:none; margin: 0.4em 0 0.8em 1.6em;">
                     <div class="sdcr-hint">Choose what to bring in - only the checked categories are touched, and only files already found readable in Step 2.</div>
@@ -210,14 +218,6 @@
                         <label><input type="checkbox" id="sdcr-plugins-confirm"> I understand and want to proceed</label>
                     </div>
                 </div>
-                <label><input type="checkbox" name="sdcr-dest" value="usb"> A second attached USB drive (must already have a filesystem on it - this won't format one)
-                    <select id="sdcr-usb-target" disabled><option value="">Select a destination USB drive...</option></select>
-                    <button type="button" id="sdcr-btn-refresh-usb" class="btn btn-secondary" title="Rescan for destination drives - use this if you plugged one in after Step 1">Refresh</button>
-                </label>
-                <div class="sdcr-progress" id="sdcr-progress-usb-refresh" style="display:none;"><div class="sdcr-progress-bar"><div class="sdcr-progress-fill"></div></div></div>
-                <pre class="sdcr-log" id="sdcr-log-usb-refresh" style="display:none;"></pre>
-                <br>
-                <label><input type="checkbox" name="sdcr-dest" value="zip"> Zip file (download to your computer)</label>
             </div>
             <button type="button" id="sdcr-btn-recover" class="btn btn-primary" disabled>Recover</button>
             <div class="sdcr-progress" id="sdcr-progress-recover" style="display:none;">
